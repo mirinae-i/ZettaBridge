@@ -170,5 +170,6 @@ Pinned Test11 SHA256:
 Expected signer certificate SHA256:
 `415bc1f97da699964e09228ece388741405ab7b2e750f1946dd7a6a363e08ae0`.
 Package with `tools/package_blockheads_test12.py` only after committing the
-source and rebuilding. The package includes source, base, hashes and evidence,
-and excludes the original game and all private signing material.
+source and rebuilding. The package includes the exact GitHub source reference,
+base, hashes and evidence. Source remains in the repository. The original game
+and all private signing material are excluded.

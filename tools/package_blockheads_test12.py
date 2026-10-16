@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Package the verified APK, rebuild inputs/source and evidence; never signing keys."""
+"""Package the APK, pinned input, source reference and evidence; never signing keys."""
 import argparse
 import hashlib
 import json
@@ -35,7 +35,10 @@ def main():
         'ZettaBridge-Blockheads-Test12-arm64.apk': apk,
         'README-ko.txt': args.readme.read_bytes(),
         'source/inputs/Test11-base.apk': args.base.read_bytes(),
-        'source/ZettaBridge-source.tar.gz': git('archive', '--format=tar.gz', '--prefix=ZettaBridge/', 'HEAD'),
+        'source/DOWNLOAD.txt': (
+            'Exact source commit:\nhttps://github.com/mirinae-i/ZettaBridge/tree/' + head +
+            '\n\nDownload source:\nhttps://github.com/mirinae-i/ZettaBridge/archive/' + head +
+            '.tar.gz\n\nRebuild instructions: docs/blockheads-test12.md\n').encode(),
         'source/REVISION.json': (json.dumps(dict(commit=head, tree=tree,
             repository='https://github.com/mirinae-i/ZettaBridge', branch='develop',
             base_sha256=BASE_SHA256, apk_sha256=digest,
