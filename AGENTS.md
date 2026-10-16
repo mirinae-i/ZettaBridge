@@ -1921,3 +1921,24 @@ separate from the earlier CalledFromWrongThreadException. World generation and
 Samsung API 37 rotation still need the user's next device test. Local validation
 covers ARM64 linking, dispatch/EGL contracts, native layout, report counters and
 APK preservation/signature. No remote push or device test was performed.
+
+## 2026-10-16: Blockheads Test9 legacy eventfd
+
+Test8 phone reports show valid Java surfaces/EGL and completed loading, but the
+controller stays inactive with no display link or frames. The original launch
+code schedules applicationDidBecomeActive via a 200 ms dispatch_after. Original
+libSystem reproduces a missing delayed callback when the main queue is drained
+only after Mach notifications. Periodic forced queue polling hides the defect.
+
+ARM syscall eventfd (351) was missing even though eventfd2 (356) existed. Mapping
+the old call to host eventfd2(initial_count, 0) changes the reproduction from
+immediate=1/delayed=0 to immediate=1/delayed=1. The focused legacy counter, flags,
+64-bit cross-thread epoll wakeup, and modern eventfd2 regression also passes.
+See docs/blockheads-test9.md and tools/test_blockheads_eventfd.py for evidence
+and limits. Do not claim full Android gameplay or world creation was tested.
+
+Test9 is an in-place 20261018 update with the same package/signer. The complete
+Test8 addon DEX is retained, including its Test8 display log prefixes; the report
+header/version identify Test9. Do not force active/consent flags or suppress
+exits. The October 11 Java exceptions in Test8 reports are historical; current
+landscape exits are user task removal. No remote push was performed.

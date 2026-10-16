@@ -1632,6 +1632,9 @@ bool handle_syscall(Process& proc, GuestThread& thread) {
     case NR__newselect: res = sys_select(c, false, false); break;
     case NR_pselect6: res = sys_select(c, true, false); break;
     case NR_pselect6_time64: res = sys_select(c, true, true); break;
+    // ARM's original eventfd syscall has only an initial counter argument.
+    // AArch64 provides eventfd2; flags=0 preserves the legacy descriptor semantics.
+    case NR_eventfd: res = result_of(::syscall(SYS_eventfd2, c.a[0], 0)); break;
     case NR_eventfd2: res = result_of(::syscall(SYS_eventfd2, c.a[0], static_cast<int>(c.a[1]))); break;
     case NR_epoll_create1: res = result_of(::epoll_create1(static_cast<int>(c.a[0]))); break;
     case NR_epoll_ctl: {
