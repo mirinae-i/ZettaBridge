@@ -6,6 +6,7 @@
 
 #include <bit>
 #include <climits>
+#include <cstdlib>
 #include <cstring>
 
 #include <dynarmic/interface/exclusive_monitor.h>
@@ -58,7 +59,9 @@ GuestThread::GuestThread(GuestMemory& mem, Dynarmic::ExclusiveMonitor* monitor, 
     cfg.fastmem_pointer = static_cast<std::uintptr_t>(reinterpret_cast<std::uintptr_t>(mem.base()));
     cfg.coprocessors[15] = cp15_;
     cfg.define_unpredictable_behaviour = true;
-    cfg.enable_cycle_counting = false;
+    const char* trace = std::getenv("ZB_LOAD_TRACE");
+    trace_enabled_ = trace != nullptr && std::strcmp(trace, "1") == 0;
+    cfg.enable_cycle_counting = trace_enabled_;
     cfg.check_halt_on_memory_access = precise_faults;
     cfg.code_cache_size = code_cache_size;
     jit_ = std::make_unique<Dynarmic::A32::Jit>(cfg);
@@ -113,11 +116,19 @@ Stop GuestThread::run() {
     for (;;) {
         Dynarmic::HaltReason reason{};
         try {
+            trace_remaining_ = 200000;
             reason = jit_->Run();
         } catch (const std::exception& failure) {
             return translator_gave_up(failure.what());
         } catch (...) {
             return translator_gave_up(nullptr);
+        }
+        if (trace_enabled_ && progress_observer) {
+            const auto now = std::chrono::steady_clock::now();
+            if (trace_samples_ == 0 || now - trace_last_ >= std::chrono::seconds(2)) {
+                trace_last_ = now;
+                progress_observer(*this, ++trace_samples_, trace_ticks_);
+            }
         }
         jit_->ClearHalt(kStopHalt | kMemoryAbortHalt);
         if (pending_.kind == StopKind::None && Dynarmic::Has(reason, kInterruptHalt)) {
@@ -128,6 +139,8 @@ Stop GuestThread::run() {
         // Another thread invalidated translated code while we were running; the JIT applies
         // the invalidation at the start of the next Run().
         if (pending_.kind == StopKind::None && Dynarmic::Has(reason, Dynarmic::HaltReason::CacheInvalidation)) continue;
+        // A diagnostic timeslice is not a guest-visible stop or signal.
+        if (trace_enabled_ && pending_.kind == StopKind::None && trace_remaining_ == 0) continue;
         break;
     }
     Stop s = pending_;

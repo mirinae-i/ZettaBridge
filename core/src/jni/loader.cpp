@@ -195,14 +195,20 @@ void JniLoader::bind_guest_loaded_libraries(JniBackend::Env env, JniLoadReport& 
 
 JniLoadReport JniLoader::load(JniBackend::Env env, const std::string& path,
                               std::uint32_t guest_flags) {
+    const auto stage = [&path](const char* phase) {
+        runtime_report().note_jni_detail("loader-stage", base_name(path) + ": " + phase, true);
+    };
     JniLoadReport report;
+    stage("scan exports begin");
     const ElfSymbolReport symbols = scan_elf32_jni_exports(path);
     if (symbols.status != ElfSymbolStatus::Ok) {
         report.error = "cannot scan JNI exports: " + symbols.message;
         return report;
     }
 
+    stage("dlopen begin");
     report.guest_handle = host_jni_.load_library_on_current(env, path, guest_flags, report.error);
+    stage("dlopen returned");
     if (report.guest_handle == 0) {
         report.error = "guest dlopen failed: " + report.error;
         return report;
@@ -213,7 +219,9 @@ JniLoadReport JniLoader::load(JniBackend::Env env, const std::string& path,
         swept_libraries_.insert(path);  // never bind the library ART asked for twice
     }
     bool has_onload = false;
+    stage("bind exports begin");
     if (!bind_exports(env, symbols, report.guest_handle, report, has_onload)) return report;
+    stage("bind exports returned");
 
     if (has_onload) {
         const std::string library = base_name(path);
@@ -224,12 +232,14 @@ JniLoadReport JniLoader::load(JniBackend::Env env, const std::string& path,
             report.error = "guest dlsym failed for JNI_OnLoad: " + symbol_error;
             return report;
         }
+        stage("JNI_OnLoad begin");
         const auto result = host_jni_.call_native(
             env, 'I', onload, [&](std::uint32_t, const RefToHandle&) {
                 GuestCall call;
                 call.regs = {host_jni_.guest_java_vm(), 0, 0, 0};
                 return call;
             });
+        stage("JNI_OnLoad returned");
         if (!result) {
             runtime_report().note_jni_onload(library, false, 0);
             report.error = "guest JNI_OnLoad call failed";
@@ -253,7 +263,9 @@ JniLoadReport JniLoader::load(JniBackend::Env env, const std::string& path,
     }
 
     report.ok = true;
+    stage("sweep mapped libraries begin");
     bind_guest_loaded_libraries(env, report);
+    stage("load complete");
     return report;
 }
 

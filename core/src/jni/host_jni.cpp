@@ -80,6 +80,12 @@ std::string loader_error(HostJni::Impl& jni, JniThread& state) {
 
 std::uint32_t loader_operation(HostJni::Impl& jni, JniBackend::Env env, bool symbol,
                                std::uint32_t value, const std::string& text, std::string& error) {
+    const auto slash = text.rfind('/');
+    const std::string label = (symbol ? "dlsym " : "dlopen ") +
+        (slash == std::string::npos ? text : text.substr(slash + 1));
+    const auto stage = [&label](const char* phase) {
+        runtime_report().note_jni_detail("loader-call", label + ": " + phase, true);
+    };
     error.clear();
     if (!jni.ready.load()) {
         error = "JNI bridge is not ready";
@@ -93,6 +99,7 @@ std::uint32_t loader_operation(HostJni::Impl& jni, JniBackend::Env env, bool sym
     ThreadEnvScope env_scope(state, env, error);
     if (!env_scope.active()) return 0;
 
+    stage("malloc begin");
     GuestCall allocate;
     allocate.regs = {static_cast<std::uint32_t>(text.size() + 1), 0, 0, 0};
     const auto allocated = jni.invoke(state, jni.runtime.service_api().malloc_fn, allocate);
@@ -115,7 +122,9 @@ std::uint32_t loader_operation(HostJni::Impl& jni, JniBackend::Env env, bool sym
                            : std::array<std::uint32_t, 4>{scratch, value, 0, 0};
         const std::uint32_t function = symbol ? jni.runtime.service_api().dlsym_fn
                                               : jni.runtime.service_api().dlopen_fn;
+        stage("invoke begin");
         result = jni.invoke(state, function, call);
+        stage("invoke returned");
         if (!result) {
             error = symbol ? "guest dlsym call failed" : "guest dlopen call failed";
         } else if (result->r0 == 0) {
@@ -123,9 +132,11 @@ std::uint32_t loader_operation(HostJni::Impl& jni, JniBackend::Env env, bool sym
         }
     }
 
+    stage("free begin");
     GuestCall release;
     release.regs = {scratch, 0, 0, 0};
     (void)jni.invoke(state, jni.runtime.service_api().free_fn, release);
+    stage("complete");
     return result ? result->r0 : 0;
 }
 
@@ -380,7 +391,7 @@ std::string jni_recent_calls() {
     const std::uint64_t next = g_recent_next.load(std::memory_order_relaxed);
     if (next == 0) return "(none)";
     const std::uint64_t first = next > kRecentJniCalls ? next - kRecentJniCalls : 0;
-    std::string out;
+    std::string out = "total=" + std::to_string(next);
     for (std::uint64_t i = first; i < next; ++i) {
         const std::uint32_t index = g_recent[i % kRecentJniCalls].load(std::memory_order_relaxed);
         if (!out.empty()) out += " ";

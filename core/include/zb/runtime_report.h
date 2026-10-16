@@ -210,9 +210,9 @@ private:
 
     static constexpr std::size_t kMaxCrashDetails = 32;
     std::vector<std::pair<std::string, std::string>> crash_details_;
-    static constexpr std::size_t kMaxJniDetails = 16;
+    static constexpr std::size_t kMaxJniDetails = 32;
     std::vector<std::pair<std::string, std::string>> jni_details_;
-    static constexpr std::size_t kMaxWatchDetails = 8;
+    static constexpr std::size_t kMaxWatchDetails = 32;
     std::vector<std::pair<std::string, std::string>> watch_details_;
     static constexpr std::size_t kMaxLooperDetails = 16;
     std::vector<std::pair<std::string, std::string>> looper_details_;

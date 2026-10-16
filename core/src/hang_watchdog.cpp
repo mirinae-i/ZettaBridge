@@ -75,6 +75,7 @@ void record_thread_activity(std::int32_t tid, ThreadActivityKind kind, std::uint
     free_slot->kind.store(static_cast<std::uint8_t>(kind), std::memory_order_relaxed);
     free_slot->id.store(id, std::memory_order_relaxed);
     free_slot->counter.store(1, std::memory_order_relaxed);
+    free_slot->in_progress.store(true, std::memory_order_relaxed);
     mine = free_slot;
     mine_tid = tid;
 }
@@ -238,6 +239,7 @@ bool HangWatchdog::sample(Clock::time_point now) {
         state.kind = sample.kind;
         state.id = sample.id;
         state.counter = sample.counter;
+        state.in_progress = sample.in_progress;
         if (prior != nullptr && prior->kind == sample.kind && prior->id == sample.id &&
             prior->counter == sample.counter) {
             state.since = prior->since;
@@ -268,6 +270,7 @@ bool HangWatchdog::sample(Clock::time_point now) {
         sample.kind = state->kind;
         sample.id = state->id;
         sample.counter = state->counter;
+        sample.in_progress = state->in_progress;
         const auto seconds =
             std::chrono::duration_cast<std::chrono::seconds>(now - state->since).count();
         value += std::to_string(state->tid) + "=" + describe_thread_activity(sample) +

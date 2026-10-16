@@ -48,9 +48,12 @@ final class PluginStore {
     }
 
     /** Application info of an imported APK, with paths pointing at our copy. */
-    static ApplicationInfo applicationInfo(PackageInfo info, PluginRecord r) {
+    static ApplicationInfo applicationInfo(PackageInfo info, PluginRecord r) throws IOException {
         ApplicationInfo ai = info.applicationInfo;
-        ai.sourceDir = r.apk().getPath();
+        // Apportable treats the APK as a virtual bundle directory. Its bundle lookup
+        // resolves symlinks, so the published prefix must already be canonical.
+        // Otherwise /data/user/0 and /data/data can name two different bundle roots.
+        ai.sourceDir = r.apk().getCanonicalPath();
         ai.publicSourceDir = ai.sourceDir;
         ai.nativeLibraryDir = r.libDir().getPath();
         ai.dataDir = r.dataDir().getPath();

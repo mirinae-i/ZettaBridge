@@ -2,6 +2,7 @@
 
 #include <condition_variable>
 #include <cstdint>
+#include <functional>
 #include <map>
 #include <mutex>
 #include <optional>
@@ -220,6 +221,9 @@ public:
         native_activity_platform_ = platform;
     }
     HostPlatformCompat* host_platform_compat() { return host_compat_; }
+    void set_platform_host_call_handler(std::function<bool(std::uint32_t, GuestThread&)> handler) {
+        platform_handler_ = std::move(handler);
+    }
 
 protected:
     // Clears a Java exception left pending by a failed load and describes it for the error
@@ -243,6 +247,7 @@ private:
     NativeActivityPlatform* native_activity_platform_ = nullptr;
     HostPlatformCompat* host_compat_ = nullptr;
     JniLoader* loader_;
+    std::function<bool(std::uint32_t, GuestThread&)> platform_handler_;
 };
 
 }  // namespace zb

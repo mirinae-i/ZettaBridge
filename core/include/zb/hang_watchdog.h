@@ -71,6 +71,7 @@ private:
         ThreadActivityKind kind = ThreadActivityKind::kNone;
         std::uint32_t id = 0;
         std::uint64_t counter = 0;
+        bool in_progress = false;
         Clock::time_point since{};  // when this (kind, id, counter) was first observed
         int unchanged_samples = 0;
     };

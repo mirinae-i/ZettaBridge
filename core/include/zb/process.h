@@ -164,6 +164,7 @@ public:
     void forget_mappings(std::uint32_t start, std::uint64_t length);
     // "libc.so offset 0x1234" style description, or "?" if the address is not file-backed.
     std::string describe_address(std::uint32_t addr) const;
+    void attach_progress_observer(GuestThread& thread);
 
     // Executable segments of libraries marked DT_ZB_TEXTREL (see elf_fixups.h). They stay
     // writable inside the emulator so text relocations can be applied. forget_mappings drops them.
@@ -223,6 +224,7 @@ private:
     std::mutex signal_mutex_;
     std::mutex seen_mutex_;
     std::set<std::uint64_t> seen_;
+    mutable std::recursive_mutex mappings_mutex_;
     std::vector<FileMapping> file_mappings_;
     std::vector<std::pair<std::uint32_t, std::uint32_t>> textrel_ranges_;
     mutable std::mutex path_aliases_mutex_;

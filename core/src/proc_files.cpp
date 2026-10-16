@@ -96,6 +96,7 @@ bool Process::open_synthetic_file(const char* guest_path, int flags, std::int32_
 }
 
 std::string Process::build_maps() const {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     std::string text;
     const auto flags_at = [&](std::uint64_t page) { return mem_.page_flags(static_cast<std::uint32_t>(page << 12)); };
     const auto name_at = [&](std::uint32_t addr, std::uint64_t& offset) -> std::string {

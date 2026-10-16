@@ -34,6 +34,28 @@ struct stack32 {
     std::uint32_t ss_size;
 };
 
+// ARM32 fcntl lock commands 5/6/7 use 32-bit off_t. Commands 12/13/14
+// use the EABI 8-byte-aligned flock64, unlike the host's command numbering.
+struct flock32 {
+    std::int16_t l_type;
+    std::int16_t l_whence;
+    std::int32_t l_start;
+    std::int32_t l_len;
+    std::int32_t l_pid;
+};
+
+struct flock64 {
+    std::int16_t l_type;
+    std::int16_t l_whence;
+    std::uint32_t pad0;
+    std::int64_t l_start;
+    std::int64_t l_len;
+    std::int32_t l_pid;
+    std::uint32_t pad1;
+};
+static_assert(sizeof(flock32) == 16 && offsetof(flock32, l_pid) == 12);
+static_assert(sizeof(flock64) == 32 && offsetof(flock64, l_start) == 8 && offsetof(flock64, l_pid) == 24);
+
 struct rlimit32 {
     std::uint32_t rlim_cur;
     std::uint32_t rlim_max;

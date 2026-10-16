@@ -1,4 +1,5 @@
 #include "guest_jni_runtime.h"
+#include "blockheads_platform.h"
 
 #include <atomic>
 #include <cstdint>
@@ -38,6 +39,10 @@ GuestJniRuntime::GuestJniRuntime(JavaVM* vm)
       native_activity_glue_(*engine_.host_native_activity(), engine_.host_native_window(), engine_.host_input()),
       proxies_(engine_) {
     engine_.set_native_activity_platform(&native_activity_glue_);
+    auto* platform = new BlockheadsPlatform(engine_.runtime(), engine_.host_jni());
+    engine_.set_platform_host_call_handler([platform](std::uint32_t index, GuestThread& thread) {
+        return platform->handle(index, thread);
+    });
 }
 
 bool GuestJniRuntime::Engine::bind_class_loader(JniBackend::Env env, JniBackend::Ref loader, std::string& error) {

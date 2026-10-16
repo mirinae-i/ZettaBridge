@@ -2,6 +2,7 @@
 
 #include <array>
 #include <atomic>
+#include <chrono>
 #include <cstddef>
 #include <cstdint>
 #include <functional>
@@ -77,6 +78,8 @@ public:
 
     // Runs until a callback stops the JIT, or until post_signal() interrupts it (Interrupted).
     Stop run();
+    // Called on this thread, only after Dynarmic returns with committed registers.
+    std::function<void(GuestThread&, std::uint64_t, std::uint64_t)> progress_observer;
     // Turns a translator failure into a stop the callers already handle; see the definition.
     Stop translator_gave_up(const char* reason);
     // Runs one nested guest function. The stopped CPU state is restored on every return path.
@@ -152,8 +155,11 @@ public:
     void InterpreterFallback(std::uint32_t pc, std::size_t num_instructions) override;
     void CallSVC(std::uint32_t swi) override;
     void ExceptionRaised(std::uint32_t pc, Dynarmic::A32::Exception exception) override;
-    void AddTicks(std::uint64_t) override {}
-    std::uint64_t GetTicksRemaining() override { return 0; }
+    void AddTicks(std::uint64_t ticks) override {
+        trace_ticks_ += ticks;
+        trace_remaining_ = ticks >= trace_remaining_ ? 0 : trace_remaining_ - ticks;
+    }
+    std::uint64_t GetTicksRemaining() override { return trace_remaining_; }
 
 private:
     bool check_access(std::uint32_t vaddr, std::uint32_t len, std::uint8_t need, bool write);
@@ -166,6 +172,9 @@ private:
     std::shared_ptr<Cp15> cp15_;
     std::unique_ptr<Dynarmic::A32::Jit> jit_;
     Stop pending_;
+    bool trace_enabled_ = false;
+    std::uint64_t trace_remaining_ = 0, trace_ticks_ = 0, trace_samples_ = 0;
+    std::chrono::steady_clock::time_point trace_last_{};
     std::atomic<std::uint64_t> pending_signals_{0};
     std::array<g::siginfo32, 65> pending_info_{};
     // futex word; std::atomic<std::uint32_t> has the layout of std::uint32_t.

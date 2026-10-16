@@ -1,6 +1,7 @@
 /* Compiled by the NDK for armeabi-v7a only (tools/build_guest.sh, -c).
  * Asserts that bionic's arm layouts match core/include/zb/guest_abi.h. */
 #include <signal.h>
+#include <fcntl.h>
 #include <sys/socket.h>
 #include <sys/sysinfo.h>
 #include <sys/times.h>
@@ -44,3 +45,10 @@ _Static_assert(offsetof(struct sysinfo, mem_unit) == 52, "sysinfo32.mem_unit");
 _Static_assert(sizeof(struct msghdr) == 28, "msghdr32");
 _Static_assert(offsetof(struct msghdr, msg_control) == 16, "msghdr32.msg_control");
 _Static_assert(sizeof(struct cmsghdr) == 12, "cmsghdr32");
+
+_Static_assert(sizeof(struct flock) == 16, "flock32 size");
+_Static_assert(offsetof(struct flock, l_start) == 4, "flock32 start");
+_Static_assert(offsetof(struct flock, l_pid) == 12, "flock32 pid");
+_Static_assert(sizeof(struct flock64) == 32, "flock64 size");
+_Static_assert(offsetof(struct flock64, l_start) == 8, "flock64 start");
+_Static_assert(offsetof(struct flock64, l_pid) == 24, "flock64 pid");

@@ -194,11 +194,13 @@ bool Process::first_time(std::uint64_t key) {
 
 void Process::record_file_mapping(std::uint32_t start, std::uint32_t length, std::uint64_t offset, std::string path,
                                   bool offset_is_vaddr) {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     forget_mappings(start, length);
     file_mappings_.push_back({start, length, offset, std::move(path), offset_is_vaddr});
 }
 
 std::vector<std::string> Process::mapped_file_paths() const {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     std::vector<std::string> paths;
     for (auto it = file_mappings_.rbegin(); it != file_mappings_.rend(); ++it) {
         if (it->path.empty()) continue;
@@ -208,6 +210,7 @@ std::vector<std::string> Process::mapped_file_paths() const {
 }
 
 void Process::forget_mappings(std::uint32_t start, std::uint64_t length) {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     const std::uint64_t end = static_cast<std::uint64_t>(start) + length;
     std::erase_if(file_mappings_, [&](const FileMapping& m) {
         return m.start < end && static_cast<std::uint64_t>(m.start) + m.length > start;
@@ -218,6 +221,7 @@ void Process::forget_mappings(std::uint32_t start, std::uint64_t length) {
 }
 
 std::string Process::describe_address(std::uint32_t addr) const {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     for (const auto& m : file_mappings_) {
         if (addr >= m.start && addr - m.start < m.length) {
             char where[64];
@@ -229,11 +233,32 @@ std::string Process::describe_address(std::uint32_t addr) const {
     return "?";
 }
 
+void Process::attach_progress_observer(GuestThread& thread) {
+    thread.progress_observer = [this](GuestThread& t, std::uint64_t sample, std::uint64_t ticks) {
+        const auto& r = t.regs();
+        const long host_tid = ::syscall(SYS_gettid);
+        char numbers[300];
+        std::snprintf(numbers, sizeof numbers,
+            "sample=%llu ticks=%llu guest-tid=%d host-tid=%ld pc=%08x lr=%08x sp=%08x fp=%08x cpsr=%08x r0=%08x r1=%08x r2=%08x r3=%08x",
+            static_cast<unsigned long long>(sample), static_cast<unsigned long long>(ticks),
+            t.tid, host_tid, r[15], r[14], r[13], r[11], t.cpsr(), r[0], r[1], r[2], r[3]);
+        const auto location = [this](std::uint32_t address) {
+            std::string out = describe_address(address & ~1u);
+            const auto slash = out.rfind('/');
+            return slash == std::string::npos ? out : out.substr(slash + 1);
+        };
+        runtime_report().note_watch_detail("pc-" + std::to_string(host_tid) + "-" + std::to_string(sample % 3),
+            std::string(numbers) + " | pc-in=" + location(r[15]) + " | lr-in=" + location(r[14]));
+    };
+}
+
 void Process::add_textrel_range(std::uint32_t start, std::uint32_t length) {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     textrel_ranges_.emplace_back(start, length);
 }
 
 bool Process::overlaps_textrel_range(std::uint32_t start, std::uint64_t length) const {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     const std::uint64_t end = static_cast<std::uint64_t>(start) + length;
     for (const auto& [range_start, range_length] : textrel_ranges_) {
         if (range_start < end && static_cast<std::uint64_t>(range_start) + range_length > start) return true;
@@ -352,6 +377,7 @@ std::unique_ptr<GuestThread> Process::create_borrower(GuestThread& carrier) {
     if (processor_id < 0) return nullptr;
     auto borrower =
         std::make_unique<GuestThread>(mem_, monitor_.get(), static_cast<std::size_t>(processor_id), precise_faults_);
+    attach_progress_observer(*borrower);
     borrower->regs().fill(0);
     borrower->regs()[13] = carrier.regs()[13] & ~7u;
     borrower->ext_regs().fill(0);
@@ -462,6 +488,7 @@ int Process::run(const std::string& path, const std::vector<std::string>& argv, 
 
     main_ = std::make_unique<GuestThread>(mem_, monitor_.get(), static_cast<std::size_t>(allocate_processor_id()),
                                           precise_faults_);
+    attach_progress_observer(*main_);
     auto& regs = main_->regs();
     regs.fill(0);
     regs[13] = sp;
@@ -661,6 +688,7 @@ std::int32_t Process::clone_thread(GuestThread& parent, std::uint32_t flags, std
         parent.child_code_cache_size != 0 ? parent.child_code_cache_size : kDefaultCodeCacheSize;
     auto child = std::make_unique<GuestThread>(mem_, monitor_.get(), static_cast<std::size_t>(processor_id),
                                                precise_faults_, code_cache_size);
+    attach_progress_observer(*child);
     child->regs() = parent.regs();
     child->regs()[0] = 0;
     if (stack != 0) child->regs()[13] = stack;

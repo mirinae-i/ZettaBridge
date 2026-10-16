@@ -457,7 +457,7 @@ GuestJniEngine::GuestJniEngine(JniBackend& backend, GlBackend* gl_backend, HostG
     // append-only platform compatibility 212-227, sensors 344-375, JNI 0xFB00+), so the chain
     // order is free;
     // GL stays first because it is by far the hotter path during rendering.
-    runtime_->set_host_call_handler([host_jni, host_gl, host_assets, host_windows, host_egl,
+    runtime_->set_host_call_handler([this, host_jni, host_gl, host_assets, host_windows, host_egl,
                                      host_looper, host_sensors, host_input, host_configuration,
                                      host_compat](std::uint32_t index, GuestThread& thread) {
         if (host_gl != nullptr && host_gl->handle_host_call(index, thread)) return true;
@@ -468,6 +468,7 @@ GuestJniEngine::GuestJniEngine(JniBackend& backend, GlBackend* gl_backend, HostG
         if (host_sensors->handle_host_call(index, thread)) return true;
         if (host_input != nullptr && host_input->handle_host_call(index, thread)) return true;
         if (host_configuration != nullptr && host_configuration->handle_host_call(index, thread)) return true;
+        if (platform_handler_ && platform_handler_(index, thread)) return true;
         if (host_compat->handle_host_call(index, thread)) return true;
         return host_jni->handle_host_call(index, thread);
     });

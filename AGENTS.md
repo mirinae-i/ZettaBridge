@@ -1860,3 +1860,47 @@ Report lines that localize this area: `jni-input-attach` (ident, looper, owner a
 reproducible one: whichever control is pressed first keeps working, and the other one ends the
 process - the shape of something initialized once, for one path only. The abort message in the
 native dump is the next piece of evidence; the report does not carry it.
+
+
+## 2026-10-11: Blockheads Test5 diagnostic build
+
+See docs/blockheads-test5.md for input hashes, reconstruction limits, build steps,
+validation, and the device gate. A separate package preserves Test4 installation.
+Test4 DEX and all runtime assets are reused; the core is rebuilt with native load
+trace samples and five reconstructed Android graphics adapters. Android arm64
+compile/link, x86_64 diagnostic JIT/watchdog tests, APK signature and preservation
+checks pass. Device execution and a fix for libFoundation.so stalling are pending.
+Do not treat the existing arithmetic tests as Android game execution.
+
+## 2026-10-11: Blockheads Test6 canonical APK path fix
+
+See docs/blockheads-test6.md. Test5 device samples identify the OSSpinLockLock
+retry loop called by CFBundleGetInfoDictionary with a NULL bundle. A local
+ARM64 Android-core bootstrap under QEMU reproduced the identical PC/LR/r2/r3
+stall when the APK path traversed a symlink; canonicalizing that path completed
+Foundation dlopen. Package-name identity was tested separately and is unchanged.
+
+PluginStore.applicationInfo now publishes the canonical sourceDir/publicSourceDir.
+The shipped Test6 is an exact scoped DEX edit of Test5, keeping its native core
+and all existing assets. It updates com.zettabridge.blockheadstest5, versionCode
+20261015, with the same test signer. No reimport or app-data reset is needed.
+Build/verification scripts and fixture evidence accompany it. Android/ART startup
+and gameplay remain unverified; the local bootstrap is not a complete app test.
+
+## 2026-10-11: Blockheads Test7 record-lock fix
+
+Test6 device logs confirm all 25 game libraries load and show the consent dialog.
+Both choices then EXIT_SELF(0). The original game's post-consent GameView init
+calls exit(0) if its LMDB database cannot open. Local execution of the original
+ARM32 LMDB code reproduced EINVAL because ARM fcntl record locks were missing.
+
+Test7 translates flock/flock64 and all six classic/wide lock commands into real
+host locks. Classic fcntl is handled too. The ARM64 Android-core lock regression
+and original-game LMDB commit/close/reopen/read test pass. The multithreaded
+exit_group fast path now leaves diagnostic evidence before exiting. See
+docs/blockheads-test7.md for scope, fixture limits, rebuild and APK verification.
+
+Test7 updates com.zettabridge.blockheadstest5 in place, versionCode 20261016, with
+the existing signer and canonical-path fix. Do not reset data or replace the game.
+The next gate is the user's Android consent-to-gameplay test; full startup and
+gameplay remain unverified. QEMU is development-only and never bundled.

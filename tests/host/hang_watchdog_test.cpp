@@ -20,6 +20,13 @@ int main() {
     // record_thread_activity / snapshot_thread_activity: a fresh tid claims a slot, repeated
     // calls bump the counter and update the recorded activity in place.
     zb::record_thread_activity(9001, zb::ThreadActivityKind::kSyscall, 3);
+    {
+        bool found = false;
+        for (const auto& sample : zb::snapshot_thread_activity()) {
+            if (sample.tid == 9001) { found = true; CHECK(sample.in_progress); }
+        }
+        CHECK(found);
+    }
     zb::record_thread_activity(9001, zb::ThreadActivityKind::kSyscall, 3);
     zb::record_thread_activity(9001, zb::ThreadActivityKind::kHostCall, 0x2a);
     {
@@ -55,6 +62,7 @@ int main() {
         stuck.tid = 111;
         stuck.kind = zb::ThreadActivityKind::kSyscall;
         stuck.id = 7;
+        stuck.in_progress = true;
         stuck.counter = 42;  // never changes
         out.push_back(stuck);
 
@@ -80,7 +88,7 @@ int main() {
 
     const std::string text = zb::runtime_report().text();
     CHECK(contains(text, "watch-1: 111=sys:"));
-    CHECK(contains(text, "x42"));
+    CHECK(contains(text, "(inside) x42"));
     CHECK(contains(text, "stuck=6"));
     CHECK(!contains(text, "222=host:"));
 

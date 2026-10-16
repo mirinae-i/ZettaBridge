@@ -635,8 +635,56 @@ std::int32_t sys_ioctl(Ctx& c) {
     return result_of(::ioctl(static_cast<int>(c.a[0]), request, arg));
 }
 
-std::int32_t sys_fcntl64(Ctx& c) {
+// Do not pass a guest flock pointer or ARM F_*LK64 number to the 64-bit host.
+// Translate both layouts, retain real kernel locking, and preserve errno.
+template <typename GuestLock>
+std::int32_t sys_fcntl_lock(Ctx& c, int command) {
+    const bool query = command == F_GETLK;
+    const std::uint8_t need = kPageRead | (query ? kPageWrite : 0);
+    if (!c.mem.accessible(c.a[2], sizeof(GuestLock), need)) return -EFAULT;
+    GuestLock guest{};
+    if (!read_guest(c.mem, c.a[2], guest)) return -EFAULT;
+    struct flock host{};
+    host.l_type = guest.l_type;
+    host.l_whence = guest.l_whence;
+    host.l_start = guest.l_start;
+    host.l_len = guest.l_len;
+    host.l_pid = guest.l_pid;
+    std::int32_t result;
+    {
+        // F_SETLKW can sleep. Use the normal interruptible syscall machinery so
+        // pending guest signals can wake it; never emulate a successful lock.
+        BlockingSection blocking(c.thread);
+        result = result_of(::fcntl(static_cast<int>(c.a[0]), command, &host));
+    }
+    if (result < 0 || !query) return result;
+    if constexpr (sizeof(guest.l_start) == 4) {
+        if (host.l_start < INT32_MIN || host.l_start > INT32_MAX) return -EOVERFLOW;
+        // Linux compat F_GETLK clamps a positive length; the start must fit.
+        if (host.l_len > INT32_MAX) host.l_len = INT32_MAX;
+        if (host.l_len < INT32_MIN) return -EOVERFLOW;
+    }
+    guest.l_type = host.l_type;
+    guest.l_whence = host.l_whence;
+    guest.l_start = host.l_start;
+    guest.l_len = host.l_len;
+    guest.l_pid = host.l_pid;
+    return write_guest(c.mem, c.a[2], guest) ? 0 : -EFAULT;
+}
+
+std::int32_t sys_fcntl(Ctx& c, bool allow_64) {
     const int cmd = static_cast<int>(c.a[1]);
+    if (!allow_64 && cmd >= 12 && cmd <= 14) return -EINVAL;
+    if ((cmd >= 5 && cmd <= 7) || (cmd >= 12 && cmd <= 14)) {
+        const int operation = cmd >= 12 ? cmd - 12 : cmd - 5;
+        const int host_command = operation == 0 ? F_GETLK : operation == 1 ? F_SETLK : F_SETLKW;
+        const std::int32_t result = cmd >= 12 ? sys_fcntl_lock<g::flock64>(c, host_command)
+                                              : sys_fcntl_lock<g::flock32>(c, host_command);
+        // First result for each command proves that the device reached this path.
+        runtime_report().note_jni_detail("file-lock-" + std::to_string(cmd),
+            "fd=" + std::to_string(c.a[0]) + " result=" + std::to_string(result), false);
+        return result;
+    }
     switch (cmd) {
     case F_DUPFD:
     case F_GETFD:
@@ -1204,11 +1252,35 @@ bool handle_syscall(Process& proc, GuestThread& thread) {
         if (trace_enabled()) log("exit(%d)", static_cast<int>(c.a[0]));
         thread.exit_status = static_cast<int>(c.a[0] & 0xff);
         return false;
-    case NR_exit_group:
+    case NR_exit_group: {
         if (trace_enabled()) log("exit_group(%d)", static_cast<int>(c.a[0]));
+        // The multi-thread fast exit used to bypass request_exit and leave no
+        // diagnostic, even when the guest deliberately exited after an error.
+        runtime_report().note_guest_exit("exit_group(" + std::to_string(c.a[0] & 0xff) +
+            ") guest-tid=" + std::to_string(guest_tid()));
+        runtime_report().note_jni_detail("exit-pc", proc.describe_address(regs[15]), true);
+        runtime_report().note_jni_detail("exit-lr", proc.describe_address(regs[14] & ~1u), true);
+        // Heuristic candidates, NOT an unwound backtrace: scan only readable
+        // stack words, retain only executable guest addresses, and bound output.
+        std::vector<std::uint32_t> seen;
+        for (std::uint64_t slot = regs[13], end = slot + 1024; slot < end && slot + 4 <= kGuestSpaceSize;
+             slot += 4) {
+            std::uint32_t address = 0;
+            if (!read_guest(c.mem, static_cast<std::uint32_t>(slot), address)) break;
+            address &= ~1u;
+            if (!c.mem.accessible(address, 2, kPageExec) ||
+                std::find(seen.begin(), seen.end(), address) != seen.end()) continue;
+            seen.push_back(address);
+            char prefix[64];
+            std::snprintf(prefix, sizeof prefix, "sp+0x%x: ", static_cast<unsigned>(slot - regs[13]));
+            runtime_report().note_jni_detail("exit-stack-candidate-" + std::to_string(seen.size()),
+                std::string(prefix) + proc.describe_address(address), true);
+            if (seen.size() >= 12) break;
+        }
         if (proc.thread_count() > 1) std::_Exit(static_cast<int>(c.a[0] & 0xff));
         proc.request_exit(static_cast<int>(c.a[0] & 0xff));
         return false;
+    }
     case NR_clone: {
         constexpr std::uint32_t kRequired = 0x00000100 | 0x00010000;  // CLONE_VM | CLONE_THREAD
         if ((c.a[0] & kRequired) != kRequired) {
@@ -1232,7 +1304,8 @@ bool handle_syscall(Process& proc, GuestThread& thread) {
     case NR_pipe2: res = sys_pipe2(c); break;
     case NR_lseek: res = sys_lseek(c); break;
     case NR__llseek: res = sys_llseek(c); break;
-    case NR_fcntl64: res = sys_fcntl64(c); break;
+    case NR_fcntl: res = sys_fcntl(c, false); break;
+    case NR_fcntl64: res = sys_fcntl(c, true); break;
     case NR_ioctl: res = sys_ioctl(c); break;
 
     case NR_openat: {
