@@ -63,6 +63,8 @@ public:
     void add_path_alias(std::string guest_prefix, std::string host_prefix);
     // Paths of the files the guest has mapped (Process::mapped_file_paths).
     std::vector<std::string> mapped_file_paths() const;
+    // Diagnostic lookup of a mapped file byte, not a guest call or symbol lookup.
+    std::optional<std::uint32_t> mapped_file_address(const std::string& path, std::uint64_t offset) const;
     // Valid after a successful start().
     const zb_service_api& service_api() const;
     // Real guest pthreads (service, carriers, guest-created threads); borrowers are not counted.

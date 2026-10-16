@@ -209,6 +209,15 @@ std::vector<std::string> Process::mapped_file_paths() const {
     return paths;
 }
 
+std::optional<std::uint32_t> Process::mapped_file_address(const std::string& path, std::uint64_t offset) const {
+    std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
+    for (const auto& m : file_mappings_) {
+        if (m.path == path && !m.offset_is_vaddr && offset >= m.offset && offset - m.offset < m.length)
+            return m.start + static_cast<std::uint32_t>(offset - m.offset);
+    }
+    return std::nullopt;
+}
+
 void Process::forget_mappings(std::uint32_t start, std::uint64_t length) {
     std::lock_guard<std::recursive_mutex> lock(mappings_mutex_);
     const std::uint64_t end = static_cast<std::uint64_t>(start) + length;

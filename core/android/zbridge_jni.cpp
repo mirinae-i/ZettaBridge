@@ -231,3 +231,10 @@ JNIEXPORT void JNICALL Java_com_zettabridge_core_ZBridge_setGlDiagnostics(JNIEnv
 }
 
 }  // extern "C"
+
+extern "C" JNIEXPORT jstring JNICALL
+Java_com_zettabridge_launcher_Test8Application_inspectNative(JNIEnv* env, jclass) {
+    auto* runtime = zb::GuestJniRuntime::peek();
+    const auto text = runtime ? runtime->inspect_blockheads_display() : "runtime not created";
+    return env->NewStringUTF(text.c_str());
+}

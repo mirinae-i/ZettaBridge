@@ -29,6 +29,8 @@ public:
     static GuestJniRuntime* peek();
 
     ProxyRuntime& proxies() { return proxies_; }
+    // Read-only, version-gated diagnostic. Call on the Apportable owner thread.
+    std::string inspect_blockheads_display();
 
 private:
     class Engine final : public GuestJniEngine {

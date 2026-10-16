@@ -488,6 +488,10 @@ GuestMemory& LibraryRuntime::memory() {
     return impl_->process.memory();
 }
 
+std::optional<std::uint32_t> LibraryRuntime::mapped_file_address(const std::string& path, std::uint64_t offset) const {
+    return impl_->process.mapped_file_address(path, offset);
+}
+
 std::vector<std::string> LibraryRuntime::mapped_file_paths() const {
     return impl_->process.mapped_file_paths();
 }

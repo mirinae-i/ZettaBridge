@@ -1904,3 +1904,20 @@ Test7 updates com.zettabridge.blockheadstest5 in place, versionCode 20261016, wi
 the existing signer and canonical-path fix. Do not reset data or replace the game.
 The next gate is the user's Android consent-to-gameplay test; full startup and
 gameplay remain unverified. QEMU is development-only and never bundled.
+
+## 2026-10-15: Blockheads Test8 display-thread build
+
+Recovered Test7 from the user-supplied archive and its cumulative public-base
+patch. Test8 adds a narrowly scoped owner-thread configuration dispatch and
+read-only Java EGL/native display diagnostics. See docs/blockheads-test8.md for
+provenance, framework assumptions, build steps and device limits. The host
+Application cannot discover plugin activities through lifecycle callbacks, so
+live ActivityThread records are inspected on main. Do not replace this with host
+Application callbacks. Do not force consent, active/render flags, or game exit.
+
+Native EGL counters do not count Apportable's Java EGL10 swaps. Test7's latest
+exit stack candidates correspond to its normal exit-alert path; keep this
+separate from the earlier CalledFromWrongThreadException. World generation and
+Samsung API 37 rotation still need the user's next device test. Local validation
+covers ARM64 linking, dispatch/EGL contracts, native layout, report counters and
+APK preservation/signature. No remote push or device test was performed.

@@ -396,6 +396,17 @@ void check_process_wide_instance() {
     CHECK(zb::runtime_report().registered_natives() == 0);
 }
 
+void check_lifecycle_visibility() {
+    zb::RuntimeReport report;
+    for (int i = 0; i < 168; ++i)
+        report.native_call_counter("audio" + std::to_string(i)).count.store(100);
+    report.native_call_counter("com/apportable/MainThread.nativeOnResume").count.store(1);
+    report.native_call_counter("com/apportable/MainThread.nativeOnPause");
+    const auto text = report.text();
+    CHECK(contains(text, "native-lifecycle: com/apportable/MainThread.nativeOnResume=1"));
+    CHECK(contains(text, "native-lifecycle: com/apportable/MainThread.nativeOnPause=0"));
+}
+
 void check_threads() {
     zb::RuntimeReport report;
     std::vector<std::thread> workers;
@@ -432,6 +443,7 @@ int main() {
     check_throttle(dir);
     check_process_wide_instance();
     check_threads();
+    check_lifecycle_visibility();
     check_gl_section();
     check_egl_section();
     check_crash_section();

@@ -579,6 +579,16 @@ std::string RuntimeReport::text() const {
         out += " total=" + std::to_string(total) + '\n';
     }
 
+    // Keep infrequent lifecycle calls visible even when audio dominates the top eight.
+    for (const NativeCallEntry& entry : native_calls_) {
+        if (entry.name.starts_with("com/apportable/MainThread.") ||
+            entry.name.starts_with("com/apportable/utils/RunLoop.") ||
+            entry.name.starts_with("com/apportable/gl/GLSurfaceRenderer.")) {
+            out += "native-lifecycle: " + entry.name + "=" +
+                   std::to_string(entry.counter->count.load(std::memory_order_relaxed)) + '\n';
+        }
+    }
+
     if (opened_paths_.empty()) {
         out += "opened-1: (none)\n";
     } else {

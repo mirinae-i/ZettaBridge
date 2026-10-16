@@ -142,6 +142,8 @@ public:
     // guest loaded by itself (a JNI shim whose JNI_OnLoad dlopens the real library, which Unity
     // plugins do) appears here and nowhere else.
     std::vector<std::string> mapped_file_paths() const;
+    // Diagnostic lookup of a mapped file byte, not a guest call or symbol lookup.
+    std::optional<std::uint32_t> mapped_file_address(const std::string& path, std::uint64_t offset) const;
     // Host path of the guest executable, as reported by /proc/self/exe.
     const std::string& exe_path() const { return exe_path_; }
     // Opens a synthesized /proc file (/proc/self/maps, /proc/self/stat, /proc/cpuinfo) that
