@@ -1971,3 +1971,22 @@ need user verification. Build/verify tools use the pinned Test9 APK as input,
 retain the same package/signer and preserve the primary DEX bytecode. The report
 header is zettabridge-diagnostic-report10 to keep its original DEX string length.
 No remote push was performed.
+
+
+## 2026-10-16: Blockheads Test11 PPI-aware UI source ready
+
+The user's unfolded-screen request now has a bounded launch-time UI policy.
+Read physical xdpi/ydpi from the active display, label logical-density fallback,
+and move toward PPI/160 with at most 12 percent reduction on near-square panels.
+The exact-build native preparation changes the UINativeScreenMode 600-point
+literal before main; pixel dimensions and the normal touch path are preserved.
+See docs/blockheads-test11.md for formula, code locations and scope.
+
+Actual addon SDK compilation, focused Java/native guards/contracts and original
+SO layout checks pass. No device run or Test11 APK has been produced. The local
+Test10 input APK and native build toolchain from the previous session were lost;
+GitHub develop was cloned to continue. Reattach the exact Test10 APK/install ZIP
+before packaging with the new Test11 build/verify wrappers. Do not imply that
+source/host checks are a signed APK or target-device validation. The scale is a
+startup snapshot; live folding/multi-window handling is not part of this change.
+master remains the published Test9 boundary; Test11 work belongs on develop.

@@ -12,9 +12,14 @@ from test5_audit_apk import parse_axml, parse_dex, parse_elf
 from verify_blockheads_test6 import method
 
 
-def verify(base_path, apk_path, native_path):
-    assert hashlib.sha256(base_path.read_bytes()).hexdigest() == (
-        '89cb8da5046d953ecced711e5f068a93cf5a3ec1afe17bb0369da858d4f70208')
+def verify(base_path, apk_path, native_path, *,
+           base_sha='89cb8da5046d953ecced711e5f068a93cf5a3ec1afe17bb0369da858d4f70208',
+           base_report=b'zettabridge-diagnostic-report 9', revision=10, suffix='native-screen'):
+    assert hashlib.sha256(base_path.read_bytes()).hexdigest() == base_sha
+    version_code = 20261009 + revision
+    version_name = f'0.1.0-blockheads-test{revision}-{suffix}'
+    report_header = f'zettabridge-diagnostic-report{revision}'.encode('ascii')
+    assert len(base_report) == len(report_header)
     with zipfile.ZipFile(base_path) as base, zipfile.ZipFile(apk_path) as apk:
         assert len(apk.namelist()) == len(set(apk.namelist()))
         assert apk.testzip() is None
@@ -26,10 +31,10 @@ def verify(base_path, apk_path, native_path):
             assert base.read(name) == apk.read(name), name
             preserved.append(name)
         added = set(apk.namelist()) - set(base.namelist())
-        assert {n for n in added if not n.startswith('META-INF/')} == {'assets/licenses/TEST10-NOTICE.txt'}
+        assert {n for n in added if not n.startswith('META-INF/')} == {f'assets/licenses/TEST{revision}-NOTICE.txt'}
         before, after = base.read('classes.dex'), apk.read('classes.dex')
-        assert before.count(b'zettabridge-diagnostic-report 9') == 1
-        expected = bytearray(before.replace(b'zettabridge-diagnostic-report 9', b'zettabridge-diagnostic-report10'))
+        assert before.count(base_report) == 1
+        expected = bytearray(before.replace(base_report, report_header))
         assert method(after, 0x245) == 'Ljava/io/File;->getCanonicalPath()Ljava/lang/String;'
         assert expected[0xc870:0xc87c] == bytes.fromhex('6e10450200000c005b100e00')
         expected[12:32] = hashlib.sha1(expected[32:]).digest()
@@ -59,17 +64,17 @@ def verify(base_path, apk_path, native_path):
         ns = '{http://schemas.android.com/apk/res/android}'
         old_manifest, manifest = (parse_axml(z.read('AndroidManifest.xml')) for z in (base, apk))
         assert manifest.get('package') == old_manifest.get('package') == 'com.zettabridge.blockheadstest5'
-        assert manifest.get(ns + 'versionCode') == '20261019'
-        assert manifest.get(ns + 'versionName') == '0.1.0-blockheads-test10-native-screen'
+        assert manifest.get(ns + 'versionCode') == str(version_code)
+        assert manifest.get(ns + 'versionName') == version_name
         assert old_manifest.find('uses-sdk').attrib == manifest.find('uses-sdk').attrib
         assert manifest.find('application').get(ns + 'name') == 'com.zettabridge.launcher.Test8Application'
-        assert manifest.find('application').get(ns + 'label') == 'ZettaBridge Blockheads Test 10'
+        assert manifest.find('application').get(ns + 'label') == f'ZettaBridge Blockheads Test {revision}'
         assert [n.attrib for n in old_manifest.findall('uses-permission')] == [n.attrib for n in manifest.findall('uses-permission')]
         # Apart from build identity, keep every activity/provider/service and
         # application setting from the working Test9 wrapper.
-        old_manifest.set(ns + 'versionCode', '20261019')
-        old_manifest.set(ns + 'versionName', '0.1.0-blockheads-test10-native-screen')
-        old_manifest.find('application').set(ns + 'label', 'ZettaBridge Blockheads Test 10')
+        old_manifest.set(ns + 'versionCode', str(version_code))
+        old_manifest.set(ns + 'versionName', version_name)
+        old_manifest.find('application').set(ns + 'label', f'ZettaBridge Blockheads Test {revision}')
         def tree(node):
             return node.tag, sorted(node.attrib.items()), [tree(child) for child in node]
         assert tree(old_manifest) == tree(manifest), 'unexpected manifest setting changed'
@@ -84,9 +89,9 @@ def verify(base_path, apk_path, native_path):
             'native_needed_libraries': elf['needed'],
             'preserved_asset_count': sum(n.startswith('assets/') for n in preserved),
             'addon_classes': sorted(classes),
-            'addon_scope': 'recompiled addon: configuration dispatch retained, tracing disabled, native mode opted in',
+            'addon_scope': 'recompiled addon: configuration dispatch retained, tracing disabled, native mode opted in; launch density policy',
             'package': manifest.get('package'),
-            'version_code': 20261019,
+            'version_code': version_code,
             'android_device_tested': False,
         }
 

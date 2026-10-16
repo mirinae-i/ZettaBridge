@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise display dispatch/EGL and Test10 launch configuration contracts on a host JVM. This is not an Android UI test."""
+"""Exercise display dispatch/EGL and Test11 launch configuration contracts on a host JVM. This is not an Android UI test."""
 import argparse
 import os
 from pathlib import Path
@@ -9,6 +9,8 @@ import textwrap
 SOURCES = {
 'android/os/Build.java': 'package android.os;public class Build {public static class VERSION {public static final int SDK_INT=37;}}',
 'android/app/Application.java': '''package android.app; public class Application {
+ public static final String WINDOW_SERVICE="window";
+ public Object getSystemService(String name){return new android.view.WindowManager();}
  public void onCreate() {} public static String getProcessName(){return "test:guest";}
 }''',
 'android/app/Activity.java': '''package android.app; public class Activity {
@@ -37,7 +39,16 @@ public class Handler {
 }''',
 'android/os/SystemClock.java': '''package android.os;public class SystemClock {public static long uptimeMillis(){return 1000;}}''',
 'android/system/Os.java': '''package android.system;public class Os {public static java.util.Map<String,String> values=new java.util.HashMap<>();public static void setenv(String n,String v,boolean b){values.put(n,v);}}''',
-'android/view/Display.java': '''package android.view;public class Display {public int getDisplayId(){return 0;}}''',
+'android/system/ErrnoException.java': 'package android.system;public class ErrnoException extends Exception {}',
+'android/util/DisplayMetrics.java': '''package android.util;public class DisplayMetrics {
+ public int widthPixels=100,heightPixels=200,densityDpi=160; public float xdpi=160,ydpi=160;
+}''',
+'android/view/WindowManager.java': '''package android.view;public class WindowManager {public Display getDefaultDisplay(){return new Display();}}''',
+'android/view/Display.java': '''package android.view;public class Display {
+ public static int width=100,height=200,dpi=160;public static float xdpi=160,ydpi=160;
+ public int getDisplayId(){return 0;}
+ public void getRealMetrics(android.util.DisplayMetrics m){m.widthPixels=width;m.heightPixels=height;m.densityDpi=dpi;m.xdpi=xdpi;m.ydpi=ydpi;}
+}''',
 'android/view/ViewParent.java': '''package android.view;public interface ViewParent {}''',
 'android/view/View.java': '''package android.view;public class View {
  public android.os.Handler handler;public ViewParent parent;
@@ -120,6 +131,27 @@ public class DisplayContractTest {
    Test8Application app=install(t);
    check("0".equals(android.system.Os.values.get("ZB_LOAD_TRACE")),"instruction tracing disabled");
    check("1".equals(android.system.Os.values.get("ZB_BLOCKHEADS_NATIVE_SCREEN")),"native screen mode enabled");
+   check("600.0".equals(android.system.Os.values.get("ZB_BLOCKHEADS_UI_POINTS")),"cover scale unchanged at launch");
+   // Fixture numbers exercise policy, not measurements of the user's handset.
+   Test8Application.UiDensity physical=Test8Application.UiDensity.choose(1800,2000,456,456,320);
+   check(Math.abs(600f/physical.points-0.95f)<0.0001f&&physical.source.equals("physical-ppi"),"use actual PPI rather than logical density");
+   Test8Application.UiDensity low=Test8Application.UiDensity.choose(1800,2000,320,320,480);
+   check(Math.abs(600f/low.points-0.88f)<0.0001f,"shrink capped at twelve percent");
+   check(Test8Application.UiDensity.choose(1800,2000,600,600,320).points==600f,"never enlarge UI");
+   check(Test8Application.UiDensity.choose(1080,2520,400,400,320).points==600f,"portrait cover unchanged");
+   check(Test8Application.UiDensity.choose(2520,1080,400,400,320).points==600f,"landscape cover unchanged");
+   check(Test8Application.UiDensity.choose(1800,2000,Float.NaN,Float.POSITIVE_INFINITY,456).source.equals("logical-dpi-fallback"),"invalid PPI has labelled fallback");
+   check(Test8Application.UiDensity.choose(1800,2000,320,640,456).source.equals("logical-dpi-fallback"),"reject inconsistent physical axes");
+   check(Test8Application.UiDensity.choose(1800,2000,0,0,0).points==600f,"missing density retains prior scale");
+   check(Test8Application.UiDensity.choose(0,2000,400,400,320).points==600f,"invalid geometry retains prior scale");
+   // Same density produces the same physical target in either orientation when
+   // the modest-change cap is not reached (width, not shorter-side, is native).
+   Test8Application.UiDensity rotated=Test8Application.UiDensity.choose(2000,1800,480,480,320);
+   check(Math.abs(2000f/rotated.points-3f)<0.0001f,"native width accounts for landscape");
+   Display.width=1800;Display.height=2000;Display.xdpi=456;Display.ydpi=456;Display.dpi=320;
+   Method prepare=Test8Application.class.getDeclaredMethod("prepareUiDensity");prepare.setAccessible(true);prepare.invoke(app);
+   check(Math.abs(Float.parseFloat(android.system.Os.values.get("ZB_BLOCKHEADS_UI_POINTS"))-physical.points)<0.001f,"real metrics published before guest load");
+   Display.width=100;Display.height=200;
    View original=a.mDecor;ViewRootImpl root=(ViewRootImpl)original.parent;
    t.mH.dispatchMessage(config);
    check(t.calls==1&&chained.get()==1&&t.executing==main,"framework stays on main and chained once");
@@ -159,7 +191,7 @@ public class DisplayContractTest {
    check(originalException&&calls.get()==3,"driver exception unwrapped and no duplicated call");
    check(((AtomicLong)field(app,"swaps")).get()==2&&((AtomicLong)field(app,"goodSwaps")).get()==1,"exact swap counters");
    privateCall(app,"instrumentEgl",Object.class,surface);check(proxy==surface.mEglHelper.mEgl,"no recursive wrapping");
-   System.out.println("PASS: dispatch, restoration, exception, chaining, discovery, EGL forwarding contracts; Android device not tested");
+   System.out.println("PASS: PPI policy/handoff, dispatch, restoration, exception, chaining, discovery, EGL forwarding contracts; Android device not tested");
   }finally{worker.shutdownNow();}
  }
 }

@@ -32,7 +32,8 @@ def verify(path):
  def string(a):i=offset(a);return bytes(data[i:data.index(0,i)]).decode()
  build_id=raw[offset(0x158):offset(0x158)+20].hex()
  assert build_id=='81b7aa3ed0b95082858efc0a7a710115221c26b9'
- fingerprints={0x240c68:0xe92d4c10,0x7816e8:0xe92d4df0,0x781a44:0xe92d4df0,0x9c5234:0xe92d4df0,0x9c5260:0xe300500b,0x496074:0xe12fff30}
+ fingerprints={0x240c68:0xe92d4c10,0x7816e8:0xe92d4df0,0x781a44:0xe92d4df0,0x9c5234:0xe92d4df0,0x9c5260:0xe300500b,0x496074:0xe12fff30,
+  0x26d804:0xe92d4c10,0x26d824:0xed9f0a36,0x26d85c:0xee800a01,0x26d904:0x44160000}
  for a,v in fingerprints.items():assert word(a)==v,(hex(a),hex(word(a)))
  syms=elf.get_section_by_name('.dynsym')
  for rel in elf.get_section_by_name('.rel.dyn').iter_relocations():

@@ -16,13 +16,18 @@ from cryptography.hazmat.primitives import serialization
 
 BASE_SHA256 = '89cb8da5046d953ecced711e5f068a93cf5a3ec1afe17bb0369da858d4f70208'
 
-def main():
-    parser = argparse.ArgumentParser(description=__doc__)
+def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9',
+         revision=10, suffix='native-screen'):
+    version_code = 20261009 + revision
+    version_name = f'0.1.0-blockheads-test{revision}-{suffix}'
+    report_header = f'zettabridge-diagnostic-report{revision}'.encode('ascii')
+    assert len(base_report) == len(report_header)
+    parser = argparse.ArgumentParser(description=f"Build Test{revision} over its pinned input APK ({suffix}).")
     for name in ['base', 'native', 'jdk', 'sdk', 'audit-dir', 'signing', 'work', 'out']:
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
     for name, value in vars(args).items(): setattr(args, name, value.resolve())
-    assert hashlib.sha256(args.base.read_bytes()).hexdigest() == BASE_SHA256
+    assert hashlib.sha256(args.base.read_bytes()).hexdigest() == base_sha
     repo = Path(__file__).resolve().parents[1]
     sys.path.insert(0, str(args.audit_dir))
     from audit_apk import parse_axml
@@ -66,11 +71,11 @@ def main():
         old_package = root.get('package')
         package = 'com.zettabridge.blockheadstest5'
         root.set('package', package)
-        root.set(key('versionCode'), '20261019')
-        root.set(key('versionName'), '0.1.0-blockheads-test10-native-screen')
+        root.set(key('versionCode'), str(version_code))
+        root.set(key('versionName'), version_name)
         app = root.find('application')
         app.set(key('name'), 'com.zettabridge.launcher.Test8Application')
-        app.set(key('label'), 'ZettaBridge Blockheads Test 10')
+        app.set(key('label'), f'ZettaBridge Blockheads Test {revision}')
         references = {
             '@0x01080093': '@android:drawable/sym_def_app_icon',
             '@0x01030238': '@android:style/Theme.Material.Light.DarkActionBar',
@@ -99,9 +104,9 @@ def main():
                 if name in ('AndroidManifest.xml', 'resources.arsc', 'classes2.dex') or name.startswith('META-INF/'): continue
                 data = base.read(name)
                 if name == 'classes.dex':
-                    assert data.count(b'zettabridge-diagnostic-report 9') == 1
-                    assert old_package == package, 'Test10 must update Test9 in place'
-                    data = bytearray(data.replace(b'zettabridge-diagnostic-report 9', b'zettabridge-diagnostic-report10'))
+                    assert data.count(base_report) == 1
+                    assert old_package == package, 'The diagnostic package must update in place'
+                    data = bytearray(data.replace(base_report, report_header))
                     # Test6 canonical-path fix must remain intact.
                     assert data[0xc870:0xc87c] == bytes.fromhex('6e10450200000c005b100e00')
                     data[12:32] = hashlib.sha1(data[32:]).digest()
@@ -109,10 +114,10 @@ def main():
                 elif name == 'lib/arm64-v8a/libzbridge.so': data = args.native.read_bytes()
                 output.writestr(name, data)
             output.writestr('classes2.dex', (dex / 'classes.dex').read_bytes())
-            output.writestr('assets/licenses/TEST10-NOTICE.txt',
+            output.writestr(f'assets/licenses/TEST{revision}-NOTICE.txt',
                 'Unofficial compatibility test build; not a native ARM64 game port.\n'
                 'Core base: ZailoxTT/ZettaBridge d6066b9b9e61de27041ba6e1f3c499c080c9e2b7.\n'
-                'Test9 runtime assets and eventfd fix retained. Test10 opts into native screen mode and reduces tracing overhead.\n'
+                f'Test{revision}: native screen mode, reduced tracing cost, and bounded display policy. Prior runtime assets retained.\n'
                 'Source, reproduction evidence and rebuild instructions accompany this APK.\n'
                 'PolyForm Noncommercial 1.0.0 and Perimeter 1.0.1 apply cumulatively.\n'
                 'Game execution on the target Android device has not been verified.\n')
@@ -135,8 +140,8 @@ def main():
     run(signer + ['verify', '--verbose', '--print-certs', args.out])
     run([bt / 'zipalign', '-c', '-P', '16', '4', args.out])
     result = dict(package=package, size=args.out.stat().st_size,
-                  sha256=hashlib.sha256(args.out.read_bytes()).hexdigest(), input_test9_sha256=BASE_SHA256,
-                  android_device_tested=False, separate_install=False, update_from_test9=True,
+                  sha256=hashlib.sha256(args.out.read_bytes()).hexdigest(), input_base_sha256=base_sha,
+                  android_device_tested=False, separate_install=False, update_from_version=revision - 1,
                   native_sha256=hashlib.sha256(args.native.read_bytes()).hexdigest(),
                   source_commit=subprocess.check_output(['git', '-C', str(repo), 'rev-parse', 'HEAD'], text=True).strip())
     args.out.with_suffix('.build.json').write_text(json.dumps(result, indent=2) + '\n')

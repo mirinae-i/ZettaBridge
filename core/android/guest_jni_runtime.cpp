@@ -141,7 +141,8 @@ JniLoadReport GuestJniRuntime::Engine::load(JniBackend::Env env, const std::stri
         const auto base = runtime().mapped_file_address(library, 0);
         try {
             runtime_report().note_jni_detail("screen-mode", base
-                ? prepare_blockheads_native_screen(runtime().memory(), *base)
+                ? prepare_blockheads_native_screen(runtime().memory(), *base,
+                      blockheads_ui_points(std::getenv("ZB_BLOCKHEADS_UI_POINTS")))
                 : "skipped: application not mapped", true);
         } catch (const std::exception& error) {
             report.ok = false;
