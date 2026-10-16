@@ -50,6 +50,7 @@ private:
             if (diagnostics != nullptr && diagnostics[0] == '1') enable_gl_diagnostics();
         }
         bool bind_class_loader(JniBackend::Env env, JniBackend::Ref loader, std::string& error) override;
+        JniLoadReport load(JniBackend::Env env, const std::string& library) override;
 
     protected:
         std::string take_pending_exception(JniBackend::Env env) override;

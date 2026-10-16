@@ -20,7 +20,7 @@ import java.util.concurrent.atomic.AtomicLong;
 import javax.microedition.khronos.egl.EGL10;
 import javax.microedition.khronos.egl.EGL11;
 
-/** Test-only compatibility and read-only display diagnostics; no game flags are forced. */
+/** Test10 retains this class name for the pinned launcher/JNI ABI. */
 public final class Test8Application extends ZbApplication {
     private final Handler main = new Handler(Looper.getMainLooper());
     private final AtomicLong swaps = new AtomicLong();
@@ -35,8 +35,11 @@ public final class Test8Application extends ZbApplication {
     private static native String inspectNative();
 
     @Override public void onCreate() {
-        try { Os.setenv("ZB_LOAD_TRACE", "1", true); }
-        catch (Exception e) { Diagnostics.stage("Test8 tracing unavailable: " + e); }
+        try {
+            Os.setenv("ZB_LOAD_TRACE", "0", true);
+            Os.setenv("ZB_BLOCKHEADS_NATIVE_SCREEN", "1", true);
+        }
+        catch (Exception e) { Diagnostics.stage("Test10 tracing unavailable: " + e); }
         super.onCreate();
         if (Build.VERSION.SDK_INT >= 28 && !Application.getProcessName().endsWith(":guest")) return;
         installConfigurationDispatch();
@@ -79,17 +82,17 @@ public final class Test8Application extends ZbApplication {
                 if (a instanceof Activity && a.getClass().getName().equals("com.apportable.activity.VerdeActivity")
                         && !((Activity) a).isDestroyed()) {
                     game = (Activity) a; started = SystemClock.uptimeMillis(); reportStep = 0;
-                    Diagnostics.stage("Test8 display diagnostics attached application=" + game.getApplication().getClass().getName());
+                    Diagnostics.stage("Test10 display diagnostics attached application=" + game.getApplication().getClass().getName());
                     sample(); return;
                 }
             }
         } catch (ReflectiveOperationException | RuntimeException e) {
             if (!inspectionWarning) {
-                inspectionWarning = true; Diagnostics.stage("Test8 activity discovery unavailable: " + cause(e));
+                inspectionWarning = true; Diagnostics.stage("Test10 activity discovery unavailable: " + cause(e));
             }
         }
         if (SystemClock.uptimeMillis() - discoveryStarted < 60000) main.postDelayed(this::discoverGame, 250);
-        else Diagnostics.stage("Test8 activity discovery timed out");
+        else Diagnostics.stage("Test10 activity discovery timed out");
     }
 
     private void installConfigurationDispatch() {
@@ -107,7 +110,7 @@ public final class Test8Application extends ZbApplication {
                         roots.clear();
                         if (!inspectionWarning) {
                             inspectionWarning = true;
-                            Diagnostics.stage("Test8 configuration inspection unavailable: " + cause(e));
+                            Diagnostics.stage("Test10 configuration inspection unavailable: " + cause(e));
                         }
                     }
                 }
@@ -122,14 +125,14 @@ public final class Test8Application extends ZbApplication {
                     if (previous == null || !previous.handleMessage(message)) h.handleMessage(message);
                     return true;
                 } catch (IllegalAccessException e) {
-                    throw new IllegalStateException("Test8 cannot defer foreign decor", e);
+                    throw new IllegalStateException("Test10 cannot defer foreign decor", e);
                 } finally {
                     for (PendingRoot root : detached) root.restoreAndDispatch();
                 }
             });
-            Diagnostics.stage("Test8 configuration owner-thread dispatch installed");
+            Diagnostics.stage("Test10 configuration owner-thread dispatch installed");
         } catch (ReflectiveOperationException | RuntimeException e) {
-            Diagnostics.stage("Test8 configuration dispatch unavailable: " + cause(e));
+            Diagnostics.stage("Test10 configuration dispatch unavailable: " + cause(e));
         }
     }
 
@@ -178,18 +181,18 @@ public final class Test8Application extends ZbApplication {
         }
         void restoreAndDispatch() {
             try { if (decorField.get(activity) == null) decorField.set(activity, decor); }
-            catch (IllegalAccessException e) { throw new IllegalStateException("Test8 cannot restore decor", e); }
+            catch (IllegalAccessException e) { throw new IllegalStateException("Test10 cannot restore decor", e); }
             boolean posted = owner.post(() -> {
                 if (activity.isDestroyed() || !decor.isAttachedToWindow() || decor.getParent() != root) return;
                 try {
                     update.invoke(root, displayId);
-                    Diagnostics.stage("Test8 configuration delivered owner=" + Thread.currentThread().getName());
+                    Diagnostics.stage("Test10 configuration delivered owner=" + Thread.currentThread().getName());
                 } catch (ReflectiveOperationException e) {
-                    Diagnostics.stage("Test8 configuration delivery failed: " + cause(e));
-                    throw new IllegalStateException("Test8 configuration delivery failed", cause(e));
+                    Diagnostics.stage("Test10 configuration delivery failed: " + cause(e));
+                    throw new IllegalStateException("Test10 configuration delivery failed", cause(e));
                 }
             });
-            Diagnostics.stage("Test8 configuration routed owner=" + owner.getLooper().getThread().getName() + " posted=" + posted);
+            Diagnostics.stage("Test10 configuration routed owner=" + owner.getLooper().getThread().getName() + " posted=" + posted);
         }
     }
 
@@ -203,7 +206,7 @@ public final class Test8Application extends ZbApplication {
             if (report) {
                 View decor = (View) get(a, "mDecor");
                 Object loader = get(a, "mLibraryLoader");
-                Diagnostics.stage("Test8 activity +" + seconds + "s decorOwner=" +
+                Diagnostics.stage("Test10 activity +" + seconds + "s decorOwner=" +
                         (decor != null && decor.getHandler() != null ? decor.getHandler().getLooper().getThread().getName() : "none") +
                         " loadFinished=" + value(loader, "mLoadFinished") + " pausedNotLoaded=" + value(loader, "mPausedNotLoaded") +
                         " error=" + value(loader, "mLoadError") + " finishing=" + a.isFinishing());
@@ -216,9 +219,9 @@ public final class Test8Application extends ZbApplication {
                     try { sampleGame(a, seconds, report); }
                     finally { main.post(() -> samplePending = false); }
                 })) samplePending = false;
-            } else if (report) Diagnostics.stage("Test8 owner sample pending=" + samplePending + " handlerPresent=" + (owner != null));
+            } else if (report) Diagnostics.stage("Test10 owner sample pending=" + samplePending + " handlerPresent=" + (owner != null));
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
-            if (report) Diagnostics.stage("Test8 owner sample unavailable: " + cause(e));
+            if (report) Diagnostics.stage("Test10 owner sample unavailable: " + cause(e));
         }
         if (seconds < 60) main.postDelayed(this::sample, 1000);
     }
@@ -231,7 +234,7 @@ public final class Test8Application extends ZbApplication {
             if (surface != null) {
                 try { instrumentEgl(surface); }
                 catch (ReflectiveOperationException | RuntimeException e) {
-                    if (report) Diagnostics.stage("Test8 Java EGL hook unavailable: " + cause(e));
+                    if (report) Diagnostics.stage("Test10 Java EGL hook unavailable: " + cause(e));
                 }
             }
             if (report) {
@@ -243,15 +246,15 @@ public final class Test8Application extends ZbApplication {
                 }
                 if (surface != null) for (String name : new String[]{"mHasSurface", "mHaveEglContext", "mHaveEglSurface", "mSizeChanged", "mWidth", "mHeight"})
                     state += " " + name + "=" + value(surface, name);
-                Diagnostics.stage("Test8 surface +" + seconds + "s " + state + " javaSwaps=" + swaps.get() +
+                Diagnostics.stage("Test10 surface +" + seconds + "s " + state + " javaSwaps=" + swaps.get() +
                         " javaGoodSwaps=" + goodSwaps.get() + " egl=" + eglState);
             }
         } catch (ReflectiveOperationException | RuntimeException | LinkageError e) {
-            if (report) Diagnostics.stage("Test8 surface unavailable: " + cause(e));
+            if (report) Diagnostics.stage("Test10 surface unavailable: " + cause(e));
         }
         // Keep native inspection independent of Java view/field compatibility.
-        if (report) try { Diagnostics.stage("Test8 native display +" + seconds + "s " + inspectNative()); }
-        catch (RuntimeException | LinkageError e) { Diagnostics.stage("Test8 native display unavailable: " + e); }
+        if (report) try { Diagnostics.stage("Test10 native display +" + seconds + "s " + inspectNative()); }
+        catch (RuntimeException | LinkageError e) { Diagnostics.stage("Test10 native display unavailable: " + e); }
     }
 
     private void instrumentEgl(Object surface) throws ReflectiveOperationException {
@@ -279,6 +282,6 @@ public final class Test8Application extends ZbApplication {
             return result;
         });
         f.set(helper, proxy); observedEgl = proxy;
-        Diagnostics.stage("Test8 Java EGL counters attached owner=" + Thread.currentThread().getName());
+        Diagnostics.stage("Test10 Java EGL counters attached owner=" + Thread.currentThread().getName());
     }
 }

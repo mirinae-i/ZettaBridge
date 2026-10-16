@@ -233,15 +233,17 @@ void RuntimeReport::note_signal_restart(std::uint32_t nr, const char* name,
 }
 
 void RuntimeReport::note_gl_call(const char* function, std::uint64_t host_tid) {
-    bool structural = false;
+    const auto count = gl_call_total_.fetch_add(1, std::memory_order_relaxed) + 1;
+    const bool structural = count == 1;
+    // Rendering can issue thousands of GL calls per frame. Counting them does not require
+    // taking the report and file-writer mutexes or reading the clock on every call.
+    if (!structural && (count & 4095u) != 0) return;
     std::shared_ptr<Observer> observer;
     {
         std::lock_guard<std::mutex> lock(mutex_);
-        ++gl_call_total_;
-        if (gl_call_total_ == 1) {
+        if (structural) {
             gl_first_call_function_ = function != nullptr ? function : "?";
             gl_first_call_tid_ = host_tid;
-            structural = true;
         }
         observer = take_observer();
     }
@@ -481,8 +483,7 @@ std::string RuntimeReport::first_unimplemented_host_call() const {
 }
 
 std::uint64_t RuntimeReport::gl_calls() const {
-    std::lock_guard<std::mutex> lock(mutex_);
-    return gl_call_total_;
+    return gl_call_total_.load(std::memory_order_relaxed);
 }
 
 std::string RuntimeReport::text() const {
@@ -602,10 +603,13 @@ std::string RuntimeReport::text() const {
         }
     }
 
-    append_count(out, "gl-calls", gl_call_total_);
+    const auto gl_calls = gl_call_total_.load(std::memory_order_relaxed);
+    append_count(out, "gl-calls", gl_calls);
     out += "gl-first-call: ";
-    if (gl_call_total_ == 0) {
+    if (gl_calls == 0) {
         out += "(none)";
+    } else if (gl_first_call_function_.empty()) {
+        out += "(pending)";
     } else {
         out += gl_first_call_function_;
         out += " tid=" + std::to_string(gl_first_call_tid_);

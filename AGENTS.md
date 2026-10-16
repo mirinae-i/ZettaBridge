@@ -1942,3 +1942,32 @@ Test8 addon DEX is retained, including its Test8 display log prefixes; the repor
 header/version identify Test9. Do not force active/consent flags or suppress
 exits. The October 11 Java exceptions in Test8 reports are historical; current
 landscape exits are user task removal. No remote push was performed.
+
+## 2026-10-16: Blockheads Test10 native screen mode and lower diagnostic cost
+
+The user confirms Test9 now renders the menu and a generated world on their
+Samsung foldable, but reports distortion and stuttering. The log's 1080x2520 view
+and 1125x2436 fixed surface imply about 7.8 percent stretch; the much larger
+terrain distortion in the screenshot is not explained by that alone.
+
+Test10 changes the exact supported game's unexecuted main screen-mode selection
+from best-preset (11) to native (12) in the private mapped image, gated by build
+ID, instruction fingerprints and the startup flag. The on-disk original remains
+unchanged. Native mode uses the game's existing display-metrics and scale path;
+UI size can change. Keep this classified as a device-test candidate, not a proven
+3D fix. Added read-only world/framebuffer/projection samples will narrow any
+remaining mismatch. See docs/blockheads-test10.md.
+
+The addon keeps its Test8Application class name but now logs Test10, disables
+ZB_LOAD_TRACE, and opts into the scoped screen-mode change. GL counters are exact
+relaxed atomics; observer notifications occur first/every 4096 calls, and host tid
+is cached in TLS. Errors, exits, file locks, eventfd, configuration dispatch and
+canonical APK paths retain their behavior.
+
+Focused host report/concurrency and native patch guard tests, actual addon JVM
+contracts, original-SO layout verification and the Android Release build pass.
+Test10 target-device rendering, rotation/folding, touch and frame times still
+need user verification. Build/verify tools use the pinned Test9 APK as input,
+retain the same package/signer and preserve the primary DEX bytecode. The report
+header is zettabridge-diagnostic-report10 to keep its original DEX string length.
+No remote push was performed.

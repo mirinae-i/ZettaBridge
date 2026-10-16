@@ -34,7 +34,8 @@ public:
     // Recorded error and exit texts are folded to one line and cut to this length.
     static constexpr std::size_t kMaxDetail = 240;
 
-    // Called after every change, with the report unlocked. `structural` is true when the report
+    // Called after changes, with the report unlocked. Hot GL counter notifications are sampled
+    // every 4096 calls; the counter itself is exact. `structural` is true when the report
     // gained a line (a new distinct host call, a load, a JNI_OnLoad, the exit reason) and false
     // when only a counter moved. A persisting observer writes structural changes at once and may
     // throttle the rest, so a hot loop of unimplemented GLES calls cannot stall the guest.
@@ -195,7 +196,7 @@ private:
     std::vector<std::string> opened_paths_;
     std::vector<std::pair<std::string, int>> failed_opens_;
 
-    std::uint64_t gl_call_total_ = 0;
+    std::atomic<std::uint64_t> gl_call_total_{0};
     std::string gl_first_call_function_;
     std::uint64_t gl_first_call_tid_ = 0;
     bool gl_egl_context_known_ = false;

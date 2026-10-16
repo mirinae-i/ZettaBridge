@@ -93,8 +93,13 @@ bool BlockheadsPlatform::handle(std::uint32_t index, GuestThread& thread) {
         }
         std::memcpy(args + 4, stack, 8);
         const char* name = index == 510 ? "glFrustumf" : "glOrthof";
-        runtime_report().note_gl_call(name, static_cast<std::uint64_t>(::syscall(SYS_gettid)));
-        runtime_report().note_gl_egl_context(eglGetCurrentContext() != EGL_NO_CONTEXT);
+        static thread_local const auto tid = static_cast<std::uint64_t>(::syscall(SYS_gettid));
+        static thread_local bool context_observed = false;
+        runtime_report().note_gl_call(name, tid);
+        if (!context_observed) {
+            context_observed = true;
+            runtime_report().note_gl_egl_context(eglGetCurrentContext() != EGL_NO_CONTEXT);
+        }
         if (index == 510) glFrustumf(args[0], args[1], args[2], args[3], args[4], args[5]);
         else glOrthof(args[0], args[1], args[2], args[3], args[4], args[5]);
         return true;

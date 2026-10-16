@@ -1,5 +1,7 @@
 #include "guest_jni_runtime.h"
 #include "blockheads_platform.h"
+#include "zb/blockheads_display.h"
+#include "zb/runtime_report.h"
 
 #include <atomic>
 #include <cstdint>
@@ -102,6 +104,19 @@ std::string GuestJniRuntime::inspect_blockheads_display() {
     add("glInitialized", byte_field(controller, 0xf33888));
     add("frameDrawn", byte_field(controller, 0xf33880));
     add("frameInterval", field(controller, 0xf33870));
+    const auto view = field(controller, 0xf33864);
+    if (view && word(view) == base + 0xe91520) {
+        float size[2] = {}, projection[16] = {};
+        read(field_address(view, 0xf34334), size, sizeof size);
+        read(field_address(view, 0xf34370), projection, sizeof projection);
+        add("worldWidth", size[0]); add("worldHeight", size[1]);
+        add("projectionX", projection[0]); add("projectionY", projection[5]);
+        const auto gl_view = field(view, 0xf34328);
+        if (gl_view && word(gl_view) == base + 0xe918b8) {
+            add("framebufferWidth", field(gl_view, 0xf34998));
+            add("framebufferHeight", field(gl_view, 0xf3499c));
+        }
+    }
     const auto link = field(controller, 0xf33890);
     add("displayLinkPresent", link != 0);
     if (link && word(link) == base + 0xe8df38) {
@@ -115,6 +130,25 @@ std::string GuestJniRuntime::inspect_blockheads_display() {
     } else if (link) out += " displayLinkClass=unsupported";
     if (!valid) out += " partial=unreadable";
     return out;
+}
+
+JniLoadReport GuestJniRuntime::Engine::load(JniBackend::Env env, const std::string& library) {
+    auto report = GuestJniEngine::load(env, library);
+    const char* native_screen = std::getenv("ZB_BLOCKHEADS_NATIVE_SCREEN");
+    if (report.ok && native_screen && std::strcmp(native_screen, "1") == 0 &&
+        library.find("/com.noodlecake.blockheads/") != std::string::npos &&
+        library.ends_with("/libApplication.so")) {
+        const auto base = runtime().mapped_file_address(library, 0);
+        try {
+            runtime_report().note_jni_detail("screen-mode", base
+                ? prepare_blockheads_native_screen(runtime().memory(), *base)
+                : "skipped: application not mapped", true);
+        } catch (const std::exception& error) {
+            report.ok = false;
+            report.error = error.what();
+        }
+    }
+    return report;
 }
 
 bool GuestJniRuntime::Engine::bind_class_loader(JniBackend::Env env, JniBackend::Ref loader, std::string& error) {

@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Exercise Test8 dispatch/EGL contracts on a host JVM. This is not an Android UI test."""
+"""Exercise display dispatch/EGL and Test10 launch configuration contracts on a host JVM. This is not an Android UI test."""
 import argparse
 import os
 from pathlib import Path
@@ -36,7 +36,7 @@ public class Handler {
  public void dispatchMessage(Message m){if(mCallback==null||!mCallback.handleMessage(m))handleMessage(m);}
 }''',
 'android/os/SystemClock.java': '''package android.os;public class SystemClock {public static long uptimeMillis(){return 1000;}}''',
-'android/system/Os.java': '''package android.system;public class Os {public static void setenv(String n,String v,boolean b){}}''',
+'android/system/Os.java': '''package android.system;public class Os {public static java.util.Map<String,String> values=new java.util.HashMap<>();public static void setenv(String n,String v,boolean b){values.put(n,v);}}''',
 'android/view/Display.java': '''package android.view;public class Display {public int getDisplayId(){return 0;}}''',
 'android/view/ViewParent.java': '''package android.view;public interface ViewParent {}''',
 'android/view/View.java': '''package android.view;public class View {
@@ -117,7 +117,10 @@ public class DisplayContractTest {
    boolean rejected=false;try{t.mH.dispatchMessage(config);}catch(IllegalStateException e){rejected=true;}
    check(rejected,"unadapted path must reject foreign root");t.calls=0;
    AtomicInteger chained=new AtomicInteger();t.mH.mCallback=m->{chained.incrementAndGet();return false;};
-   Test8Application app=install(t);View original=a.mDecor;ViewRootImpl root=(ViewRootImpl)original.parent;
+   Test8Application app=install(t);
+   check("0".equals(android.system.Os.values.get("ZB_LOAD_TRACE")),"instruction tracing disabled");
+   check("1".equals(android.system.Os.values.get("ZB_BLOCKHEADS_NATIVE_SCREEN")),"native screen mode enabled");
+   View original=a.mDecor;ViewRootImpl root=(ViewRootImpl)original.parent;
    t.mH.dispatchMessage(config);
    check(t.calls==1&&chained.get()==1&&t.executing==main,"framework stays on main and chained once");
    check(a.mDecor==original&&root.updates==0&&h.queue.size()==1,"decor restored, update deferred");

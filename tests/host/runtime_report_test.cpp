@@ -343,6 +343,28 @@ void check_observer() {
     CHECK(structural == 3 && counter == 2);
 }
 
+void check_gl_hot_counter() {
+    zb::RuntimeReport report;
+    std::atomic<unsigned> structural{0}, sampled{0};
+    report.set_observer([&](bool first) {
+        if (first) ++structural; else ++sampled;
+        CHECK(!report.text().empty());  // Notifications stay outside the report lock.
+    });
+    report.note_gl_call("glClear", 11);
+    std::vector<std::thread> threads;
+    for (unsigned t = 0; t < 4; ++t) threads.emplace_back([&] {
+        for (unsigned i = 0; i < 10000; ++i) report.note_gl_call("glDrawArrays", 22);
+    });
+    for (auto& t : threads) t.join();
+    CHECK(report.gl_calls() == 40001);
+    CHECK(structural == 1 && sampled == 9);
+    CHECK(line_with(report.text(), "gl-first-call:") == "gl-first-call: glClear tid=11");
+    report.clear();
+    report.note_gl_call("glViewport", 33);
+    CHECK(report.gl_calls() == 1);
+    CHECK(line_with(report.text(), "gl-first-call:") == "gl-first-call: glViewport tid=33");
+}
+
 void check_file_writer(const fs::path& dir) {
     const fs::path path = dir / "zb-runtime-report.txt";
     zb::RuntimeReport report;
@@ -439,6 +461,7 @@ int main() {
     check_exit_reason();
     check_signal_restart_section();
     check_observer();
+    check_gl_hot_counter();
     check_file_writer(dir);
     check_throttle(dir);
     check_process_wide_instance();

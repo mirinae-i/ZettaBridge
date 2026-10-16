@@ -21,6 +21,7 @@ set(ZB_HOST_TESTS
     path_translation_test
     platform_compat_test
     proxy_runtime_test
+    blockheads_display_test
     runtime_report_test
     sensors_test
     t1_blob_test
