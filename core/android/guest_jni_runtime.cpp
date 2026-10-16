@@ -1,6 +1,7 @@
 #include "guest_jni_runtime.h"
 #include "blockheads_platform.h"
 #include "zb/blockheads_display.h"
+#include "zb/blockheads_crystals.h"
 #include "zb/runtime_report.h"
 
 #include <atomic>
@@ -140,6 +141,10 @@ JniLoadReport GuestJniRuntime::Engine::load(JniBackend::Env env, const std::stri
         library.ends_with("/libApplication.so")) {
         const auto base = runtime().mapped_file_address(library, 0);
         try {
+            const char* local = std::getenv("ZB_BLOCKHEADS_LOCAL_CRYSTALS");
+            if (base && local && std::strcmp(local, "1") == 0)
+                runtime_report().note_jni_detail("local-crystals",
+                    prepare_blockheads_local_crystals(runtime().memory(), *base), true);
             runtime_report().note_jni_detail("screen-mode", base
                 ? prepare_blockheads_native_screen(runtime().memory(), *base,
                       blockheads_ui_points(std::getenv("ZB_BLOCKHEADS_UI_POINTS")))

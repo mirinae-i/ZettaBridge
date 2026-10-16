@@ -1,0 +1,14 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="108dp" android:height="108dp" android:viewportWidth="108" android:viewportHeight="108">
+    <!-- Original block-built Z/bridge mark. All detail stays inside the safe zone. -->
+    <group android:pivotX="54" android:pivotY="54" android:scaleX="0.92" android:scaleY="0.92">
+    <path android:fillColor="#071522" android:fillAlpha="0.4"
+        android:pathData="M30,36H78V50L50,72H78V84H30V70L58,48H30Z" />
+    <path android:fillColor="#E5F5FF"
+        android:pathData="M30,30H78V44L50,66H78V78H30V64L58,42H30Z" />
+    <path android:fillColor="#83C7E9" android:pathData="M30,72H78V78H30ZM30,36H58V42H30Z" />
+    <path android:fillColor="#54E3B0" android:pathData="M66,30H78V42H66Z" />
+    <path android:fillColor="#A7FFDB" android:pathData="M66,30H78V34H66Z" />
+    </group>
+</vector>

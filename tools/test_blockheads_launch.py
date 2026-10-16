@@ -6,6 +6,7 @@ from pathlib import Path
 import subprocess
 
 SOURCES = {
+    'com/zettabridge/launcher/BlockheadsSavesActivity.java': 'package com.zettabridge.launcher; public class BlockheadsSavesActivity extends android.app.Activity {}',
     'android/content/Context.java': '''package android.content; public class Context {
         public static java.io.File root; public java.io.File getFilesDir(){return root;}
     }''',
@@ -119,6 +120,7 @@ SOURCES = {
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument('--test12',action='store_true')
     for name in ('jdk', 'work'):
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
@@ -126,11 +128,20 @@ def main():
     work, jdk = args.work.resolve(), args.jdk.resolve()
     sources = []
     for name, content in SOURCES.items():
+        if args.test12 and name.endswith('/LaunchContractTest.java'):
+            content = content.replace('Intent ready=launch();', '''
+                Path journal=Context.root.toPath().resolve("zb-save-work/transaction/journal");
+                Files.createDirectories(journal.getParent());Files.writeString(journal,"pending fixture");
+                check(launch().target==BlockheadsSavesActivity.class,"unfinished restore must block game launch");
+                check(Files.readString(save).equals("existing world"),"recovery route preserves data");
+                Files.delete(journal);
+                Intent ready=launch();''')
         path = work / 'src' / name
         path.parent.mkdir(parents=True, exist_ok=True)
         path.write_text(content + '\n')
         sources.append(path)
-    sources.append(repo / 'android/test11/BlockheadsLaunchActivity.java')
+    sources.append(repo / ('android/test12/BlockheadsLaunchActivity.java' if args.test12 else 'android/test11/BlockheadsLaunchActivity.java'))
+    if args.test12: sources.append(repo / 'android/test12/SaveStore.java')
     launcher = repo / 'android/launcher/app/src/main/java/com/zettabridge/launcher'
     sources += [launcher / n for n in ('PluginRecord.java', 'PluginSwitchActivity.java')]
     classes = work / 'classes'

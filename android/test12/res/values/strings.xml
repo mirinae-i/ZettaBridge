@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="manage_short">Settings</string>
+    <string name="manage_long">Games and diagnostics</string>
+    <string name="saves_short">Saves</string>
+    <string name="saves_long">Back up and restore worlds</string>
+</resources>

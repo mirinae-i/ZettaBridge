@@ -2012,3 +2012,30 @@ Blockheads - ZettaBridge. The old source-only delivery limitation is resolved.
 No target-device run was performed here. Do not promise exact physical size,
 live folding/multi-window adaptation, measured FPS, or official game status.
 Relaunch after changing panels. Work remains on develop; master stays at Test9.
+
+
+## 2026-10-16: Blockheads Test12 offline crystals and save tools
+
+Test12 replaces the four supported-build crystal purchase buttons with local ADD
+(200/1200/3000/10000), using the original CrystalManager modification/checksum,
+notification and save-queue methods. No receipts, Google callbacks or server
+balances are fabricated. The constructor query is disabled; exact build/hash,
+startup and page guards restrict the authored ARM handler to the private image.
+Original game files stay unchanged. See docs/blockheads-test12.md.
+
+Worlds resolve under the plugin data/files/Library/Application Support/saves;
+crystals use data/files/.Keychain.plist. These paths were derived from the source
+and original binaries, not read from the phone. A new localized Saves shortcut
+exports/restores the full plugin data plus only game-prefixed host preferences.
+Restore validates hashes/paths/limits, confirms whole-save replacement, keeps a
+pre-restore ZIP, journals atomic renames and rolls back interrupted transactions.
+An OS file lock excludes the guest for snapshot/restore; a pending journal blocks
+launch and routes to recovery. Do not copy active game files or reset user data.
+
+Native/SDK builds, 16 ARM cases, native guards, JVM save round-trip/fault/crash/
+corrupt-archive/lock contracts, Test12 PPI/dispatch and launch contracts pass.
+APK checks cover original assets/primary code, same signer/package, 16-KiB
+alignment and compiled shortcuts. No Android gameplay, disk persistence or device
+restore test was possible. Be explicit about those limits. Use version 20261021,
+package com.zettabridge.blockheadstest5 and the existing private signer. Publish
+on develop only; master remains Test9. Never commit keys or the original game.

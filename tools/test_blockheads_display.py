@@ -7,6 +7,7 @@ import subprocess
 import textwrap
 
 SOURCES = {
+'com/zettabridge/launcher/SaveGate.java': 'package com.zettabridge.launcher; final class SaveGate {static boolean isGuest(android.app.Application a){return true;}static boolean enterGuest(android.app.Application a){return true;}}',
 'android/os/Build.java': 'package android.os;public class Build {public static class VERSION {public static final int SDK_INT=37;}}',
 'android/app/Application.java': '''package android.app; public class Application {
  public static final String WINDOW_SERVICE="window";
@@ -200,6 +201,7 @@ public class DisplayContractTest {
 
 def main():
  p=argparse.ArgumentParser(description=__doc__)
+ p.add_argument('--source',type=Path)
  for n in ('jdk','android','work'):p.add_argument('--'+n,type=Path,required=True)
  a=p.parse_args();a.jdk=a.jdk.resolve();a.android=a.android.resolve();a.work=a.work.resolve()
  src=a.work/'src';classes=a.work/'classes';classes.mkdir(parents=True,exist_ok=True)
@@ -207,6 +209,6 @@ def main():
   f=src/name;f.parent.mkdir(parents=True,exist_ok=True);f.write_text(textwrap.dedent(text))
  repo=Path(__file__).resolve().parents[1]
  env=os.environ.copy();env['LD_LIBRARY_PATH']=str(a.jdk/'lib');env['TMPDIR']=str(a.work)
- subprocess.run([str(a.jdk/'bin/javac'),'-source','17','-target','17','-classpath',str(a.android),'-d',str(classes),*[str(f) for f in src.rglob('*.java')],str(repo/'android/test8/Test8Application.java')],env=env,check=True)
+ subprocess.run([str(a.jdk/'bin/javac'),'-source','17','-target','17','-classpath',str(a.android),'-d',str(classes),*[str(f) for f in src.rglob('*.java')],str(a.source.resolve() if a.source else repo/'android/test8/Test8Application.java')],env=env,check=True)
  subprocess.run([str(a.jdk/'bin/java'),'-cp',str(classes)+os.pathsep+str(a.android),'com.zettabridge.launcher.DisplayContractTest'],env=env,check=True)
 if __name__=='__main__':main()

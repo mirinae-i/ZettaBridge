@@ -15,7 +15,8 @@ from verify_blockheads_test6 import method
 
 def verify(base_path, apk_path, native_path, *,
            base_sha='89cb8da5046d953ecced711e5f068a93cf5a3ec1afe17bb0369da858d4f70208',
-           base_report=b'zettabridge-diagnostic-report 9', revision=10, suffix='native-screen', direct_launch=False):
+           base_report=b'zettabridge-diagnostic-report 9', revision=10, suffix='native-screen', direct_launch=False,
+           save_tools=False):
     assert hashlib.sha256(base_path.read_bytes()).hexdigest() == base_sha
     version_code = 20261009 + revision
     version_name = f'0.1.0-blockheads-test{revision}-{suffix}'
@@ -27,6 +28,8 @@ def verify(base_path, apk_path, native_path, *,
         allowed = {'AndroidManifest.xml', 'classes.dex', 'classes2.dex', 'lib/arm64-v8a/libzbridge.so'}
         if direct_launch:
             allowed.add('resources.arsc')
+        if save_tools:
+            allowed.add('res/xml/shortcuts.xml')
         preserved = []
         for name in base.namelist():
             if name.startswith('META-INF/') or name in allowed:
@@ -37,6 +40,9 @@ def verify(base_path, apk_path, native_path, *,
         resources = {n for n in added if n.startswith('res/')} if direct_launch else set()
         assert {n for n in added if not n.startswith('META-INF/')} == resources | {f'assets/licenses/TEST{revision}-NOTICE.txt'}
         if direct_launch:
+            if save_tools:
+                assert not resources, 'Test12 must reuse the Test11 icon resource paths'
+                resources = {n for n in apk.namelist() if n.startswith('res/')}
             expected_resources = {'res/drawable/' + n + '.xml' for n in
                                   ('ic_background', 'ic_foreground', 'ic_monochrome', 'ic_manage')}
             expected_resources |= {'res/mipmap-anydpi-v26/ic_launcher.xml',
@@ -64,7 +70,17 @@ def verify(base_path, apk_path, native_path, *,
         assert len(classes) >= 2
         assert classes['Lcom/zettabridge/launcher/Test8Application;'] == 'Lcom/zettabridge/launcher/ZbApplication;'
         entry_class = 'Lcom/zettabridge/launcher/BlockheadsLaunchActivity;'
-        assert all('Test8Application' in name or (direct_launch and name == entry_class) for name in classes)
+        allowed_classes = {'Test8Application'}
+        if direct_launch:
+            allowed_classes.add('BlockheadsLaunchActivity')
+        if save_tools:
+            allowed_classes.update(('SaveStore', 'SaveGate', 'BlockheadsSavesActivity'))
+        assert all(any(name == 'Lcom/zettabridge/launcher/' + cls + ';' or
+                       name.startswith('Lcom/zettabridge/launcher/' + cls + '$')
+                       for cls in allowed_classes) for name in classes)
+        if save_tools:
+            assert all('Lcom/zettabridge/launcher/' + cls + ';' in classes for cls in allowed_classes)
+            assert classes['Lcom/zettabridge/launcher/BlockheadsSavesActivity;'] == 'Landroid/app/Activity;'
         if direct_launch:
             assert classes[entry_class] == 'Landroid/app/Activity;'
             # Compile-only placeholders must never shadow the working base DEX.
@@ -114,8 +130,13 @@ def verify(base_path, apk_path, native_path, *,
             old_app.set(ns + 'icon', icon)
             old_app.set(ns + 'roundIcon', icon)
             library = next(a for a in old_app.findall('activity') if a.get(ns + 'name') == 'com.zettabridge.launcher.LibraryActivity')
-            library.remove(library.find('intent-filter'))
+            for item in list(library.findall('intent-filter')):
+                if any(c.get(ns + 'name') == 'android.intent.category.LAUNCHER' for c in item.findall('category')):
+                    library.remove(item)
             library.set(ns + 'label', 'ZettaBridge Settings')
+            for item in list(old_app.findall('activity')):
+                if item.get(ns + 'name') == 'com.zettabridge.launcher.BlockheadsLaunchActivity':
+                    old_app.remove(item)
             entry = next(a for a in new_app.findall('activity') if a.get(ns + 'name') == 'com.zettabridge.launcher.BlockheadsLaunchActivity')
             assert entry.attrib == {
                 ns + 'name': 'com.zettabridge.launcher.BlockheadsLaunchActivity',
@@ -131,7 +152,7 @@ def verify(base_path, apk_path, native_path, *,
             ET.SubElement(expected, 'meta-data', {ns + 'name': 'android.app.shortcuts', ns + 'resource': shortcut_id})
             old_app.append(expected)
             shortcuts = compiled_resources['res/xml/shortcuts.xml']
-            assert shortcuts.tag == 'shortcuts' and len(shortcuts) == 1
+            assert shortcuts.tag == 'shortcuts' and len(shortcuts) == (2 if save_tools else 1)
             shortcut = shortcuts[0]
             assert shortcut.get(ns + 'shortcutId') == 'manage' and shortcut.get(ns + 'enabled') == 'true'
             assert len(shortcut) == 1 and shortcut[0].attrib == {
@@ -139,6 +160,22 @@ def verify(base_path, apk_path, native_path, *,
                 ns + 'targetPackage': 'com.zettabridge.blockheadstest5',
                 ns + 'targetClass': 'com.zettabridge.launcher.LibraryActivity',
             }
+            if save_tools:
+                shortcut = shortcuts[1]
+                assert shortcut.get(ns + 'shortcutId') == 'saves' and shortcut.get(ns + 'enabled') == 'true'
+                assert len(shortcut) == 1 and shortcut[0].attrib == {
+                    ns + 'action': 'android.intent.action.VIEW',
+                    ns + 'targetPackage': 'com.zettabridge.blockheadstest5',
+                    ns + 'targetClass': 'com.zettabridge.launcher.BlockheadsSavesActivity',
+                }
+                assert all(shortcut.get(ns + name, '').startswith('@0x7f') for name in
+                           ('icon', 'shortcutShortLabel', 'shortcutLongLabel'))
+                ET.SubElement(old_app, 'activity', {
+                    ns + 'name': 'com.zettabridge.launcher.BlockheadsSavesActivity',
+                    ns + 'exported': 'true', ns + 'label': 'Saves - ZettaBridge',
+                    ns + 'theme': '@0x01030238', ns + 'configChanges': '0x000004a0',
+                    ns + 'taskAffinity': 'com.zettabridge.blockheadstest5.saves',
+                })
         def tree(node):
             return node.tag, sorted(node.attrib.items()), [tree(child) for child in node]
         assert tree(old_manifest) == tree(manifest), 'unexpected manifest setting changed'
@@ -158,6 +195,7 @@ def verify(base_path, apk_path, native_path, *,
             'version_code': version_code,
             'direct_launch_with_import_fallback': direct_launch,
             'adaptive_icon_and_settings_shortcut': direct_launch,
+            'offline_crystals_and_save_tools': save_tools,
             'android_device_tested': False,
         }
 

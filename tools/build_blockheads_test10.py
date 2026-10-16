@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives import serialization
 BASE_SHA256 = '89cb8da5046d953ecced711e5f068a93cf5a3ec1afe17bb0369da858d4f70208'
 
 def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9',
-         revision=10, suffix='native-screen', direct_launch=False):
+         revision=10, suffix='native-screen', direct_launch=False, save_tools=False):
     version_code = 20261009 + revision
     version_name = f'0.1.0-blockheads-test{revision}-{suffix}'
     report_header = f'zettabridge-diagnostic-report{revision}'.encode('ascii')
@@ -52,10 +52,12 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
     compiler = [args.jdk / 'bin/javac', '-J-Djava.io.tmpdir=' + str(tmp), '-encoding', 'UTF-8',
                 '-source', '17', '-target', '17']
     stubs = sorted((repo / 'android/test5/compile-stubs').rglob('*.java'))
-    sources = [repo / 'android/test8/Test8Application.java']
+    sources = [repo / ('android/test12/Test8Application.java' if save_tools else 'android/test8/Test8Application.java')]
     if direct_launch:
         stubs += sorted((repo / 'android/test11/compile-stubs').rglob('*.java'))
-        sources.append(repo / 'android/test11/BlockheadsLaunchActivity.java')
+        sources.append(repo / ('android/test12/BlockheadsLaunchActivity.java' if save_tools else 'android/test11/BlockheadsLaunchActivity.java'))
+    if save_tools:
+        sources += [repo / ('android/test12/' + n + '.java') for n in ('SaveStore', 'SaveGate', 'BlockheadsSavesActivity')]
     run(compiler + ['-classpath', android, '-d', stub_classes] + stubs)
     run(compiler + ['-classpath', str(android) + os.pathsep + str(stub_classes), '-d', app_classes] + sources)
     jar(args.work / 'compile-stubs.jar', stub_classes)
@@ -90,6 +92,8 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
                        for c in intent_filter.findall('category')):
                     library.remove(intent_filter)
             library.set(key('label'), 'ZettaBridge Settings')
+            for old in list(app.findall('activity')):
+                if old.get(key('name')) == 'com.zettabridge.launcher.BlockheadsLaunchActivity': app.remove(old)
             entry = ET.SubElement(app, 'activity', {
                 key('name'): 'com.zettabridge.launcher.BlockheadsLaunchActivity',
                 key('exported'): 'true', key('theme'): '@android:style/Theme.NoDisplay',
@@ -100,6 +104,12 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
             ET.SubElement(intent_filter, 'category', {key('name'): 'android.intent.category.LAUNCHER'})
             ET.SubElement(entry, 'meta-data', {key('name'): 'android.app.shortcuts',
                                               key('resource'): '@xml/shortcuts'})
+        if save_tools:
+            ET.SubElement(app, 'activity', {key('name'): 'com.zettabridge.launcher.BlockheadsSavesActivity',
+                key('exported'): 'true', key('label'): 'Saves - ZettaBridge',
+                key('theme'): '@android:style/Theme.Material.Light.DarkActionBar',
+                key('configChanges'): 'orientation|screenSize|keyboardHidden',
+                key('taskAffinity'): package + '.saves'})
         references = {
             '@0x01080093': '@android:drawable/sym_def_app_icon',
             '@0x01030238': '@android:style/Theme.Material.Light.DarkActionBar',
@@ -125,13 +135,13 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
         if direct_launch:
             resources = args.work / 'resources.zip'
             resources.unlink(missing_ok=True)
-            run([bt / 'aapt2', 'compile', '--dir', repo / 'android/test11/res', '-o', resources])
+            run([bt / 'aapt2', 'compile', '--dir', repo / ('android/test12/res' if save_tools else 'android/test11/res'), '-o', resources])
             link.append(resources)
         run(link)
         with zipfile.ZipFile(unsigned, 'a', zipfile.ZIP_DEFLATED) as output:
             for info in base.infolist():
                 name = info.filename
-                if name in ('AndroidManifest.xml', 'resources.arsc', 'classes2.dex') or name.startswith('META-INF/'): continue
+                if name in ('AndroidManifest.xml', 'resources.arsc', 'classes2.dex') or name.startswith('META-INF/') or (direct_launch and name.startswith('res/')): continue
                 data = base.read(name)
                 if name == 'classes.dex':
                     assert data.count(base_report) == 1
@@ -149,6 +159,8 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
                 'Core base: ZailoxTT/ZettaBridge d6066b9b9e61de27041ba6e1f3c499c080c9e2b7.\n'
                 f'Test{revision}: native screen mode, reduced tracing cost, and bounded display policy. Prior runtime assets retained.\n'
                 + ('Direct-launch addon and original vector launcher artwork included.\n' if direct_launch else '') +
+                ('Offline crystal ADD buttons use the original local balance/save API.\n'
+                 'Save ZIP export/restore includes a process gate and rollback journal.\n' if save_tools else '') +
                 'Source, reproduction evidence and rebuild instructions accompany this APK.\n'
                 'PolyForm Noncommercial 1.0.0 and Perimeter 1.0.1 apply cumulatively.\n'
                 'Game execution on the target Android device has not been verified.\n')
