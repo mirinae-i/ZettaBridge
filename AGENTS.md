@@ -1990,3 +1990,25 @@ before packaging with the new Test11 build/verify wrappers. Do not imply that
 source/host checks are a signed APK or target-device validation. The scale is a
 startup snapshot; live folding/multi-window handling is not part of this change.
 master remains the published Test9 boundary; Test11 work belongs on develop.
+
+
+## 2026-10-16: Blockheads Test11 installable update
+
+The reattached source.zip restored the pinned Test10 APK; its hash and all 110
+bundle checksums pass. Test11 now includes the bounded launch-time PPI policy,
+an original adaptive/themed vector icon, and a dedicated MAIN/LAUNCHER entry.
+BlockheadsLaunchActivity uses the existing PluginSwitchActivity.intent ABI to
+open the imported game, preserving warm-guest and stale/different-task handling.
+Missing/incomplete imports go to the original library. Long press the new icon
+for Settings / Games and diagnostics. Original game and private key stay out of
+the repository and delivery bundle. See docs/blockheads-test11.md.
+
+NDK r29 Android arm64/API29 Release linking, addon SDK35/D8 compilation, PPI and
+configuration contracts, native layout/patch guards, direct-launch contracts,
+v1/v2 signing, 16-KiB ZIP/ELF alignment, scoped APK changes and preservation of
+all 41 prior assets pass. Set a writable TMPDIR for NDK assembly. The package is
+com.zettabridge.blockheadstest5, versionCode 20261020, same signer as Test10; label
+Blockheads - ZettaBridge. The old source-only delivery limitation is resolved.
+No target-device run was performed here. Do not promise exact physical size,
+live folding/multi-window adaptation, measured FPS, or official game status.
+Relaunch after changing panels. Work remains on develop; master stays at Test9.

@@ -17,7 +17,7 @@ from cryptography.hazmat.primitives import serialization
 BASE_SHA256 = '89cb8da5046d953ecced711e5f068a93cf5a3ec1afe17bb0369da858d4f70208'
 
 def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9',
-         revision=10, suffix='native-screen'):
+         revision=10, suffix='native-screen', direct_launch=False):
     version_code = 20261009 + revision
     version_name = f'0.1.0-blockheads-test{revision}-{suffix}'
     report_header = f'zettabridge-diagnostic-report{revision}'.encode('ascii')
@@ -51,10 +51,13 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
         folder.mkdir()
     compiler = [args.jdk / 'bin/javac', '-J-Djava.io.tmpdir=' + str(tmp), '-encoding', 'UTF-8',
                 '-source', '17', '-target', '17']
-    run(compiler + ['-classpath', android, '-d', stub_classes] +
-        sorted((repo / 'android/test5/compile-stubs').rglob('*.java')))
-    run(compiler + ['-classpath', str(android) + os.pathsep + str(stub_classes), '-d', app_classes,
-                    repo / 'android/test8/Test8Application.java'])
+    stubs = sorted((repo / 'android/test5/compile-stubs').rglob('*.java'))
+    sources = [repo / 'android/test8/Test8Application.java']
+    if direct_launch:
+        stubs += sorted((repo / 'android/test11/compile-stubs').rglob('*.java'))
+        sources.append(repo / 'android/test11/BlockheadsLaunchActivity.java')
+    run(compiler + ['-classpath', android, '-d', stub_classes] + stubs)
+    run(compiler + ['-classpath', str(android) + os.pathsep + str(stub_classes), '-d', app_classes] + sources)
     jar(args.work / 'compile-stubs.jar', stub_classes)
     jar(args.work / 'test8.jar', app_classes)
     java = args.jdk / 'bin/java'
@@ -76,6 +79,27 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
         app = root.find('application')
         app.set(key('name'), 'com.zettabridge.launcher.Test8Application')
         app.set(key('label'), f'ZettaBridge Blockheads Test {revision}')
+        if direct_launch:
+            app.set(key('label'), 'Blockheads - ZettaBridge')
+            app.set(key('icon'), '@mipmap/ic_launcher')
+            app.set(key('roundIcon'), '@mipmap/ic_launcher')
+            library = next(a for a in app.findall('activity')
+                           if a.get(key('name')) == 'com.zettabridge.launcher.LibraryActivity')
+            for intent_filter in list(library.findall('intent-filter')):
+                if any(c.get(key('name')) == 'android.intent.category.LAUNCHER'
+                       for c in intent_filter.findall('category')):
+                    library.remove(intent_filter)
+            library.set(key('label'), 'ZettaBridge Settings')
+            entry = ET.SubElement(app, 'activity', {
+                key('name'): 'com.zettabridge.launcher.BlockheadsLaunchActivity',
+                key('exported'): 'true', key('theme'): '@android:style/Theme.NoDisplay',
+                key('taskAffinity'): package + '.entry', key('excludeFromRecents'): 'true',
+            })
+            intent_filter = ET.SubElement(entry, 'intent-filter')
+            ET.SubElement(intent_filter, 'action', {key('name'): 'android.intent.action.MAIN'})
+            ET.SubElement(intent_filter, 'category', {key('name'): 'android.intent.category.LAUNCHER'})
+            ET.SubElement(entry, 'meta-data', {key('name'): 'android.app.shortcuts',
+                                              key('resource'): '@xml/shortcuts'})
         references = {
             '@0x01080093': '@android:drawable/sym_def_app_icon',
             '@0x01030238': '@android:style/Theme.Material.Light.DarkActionBar',
@@ -97,7 +121,13 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
         ET.ElementTree(root).write(manifest, encoding='utf-8', xml_declaration=True)
         unsigned = args.work / 'unsigned.apk'
         if unsigned.exists(): unsigned.unlink()
-        run([bt / 'aapt2', 'link', '-I', android, '--manifest', manifest, '-o', unsigned])
+        link = [bt / 'aapt2', 'link', '-I', android, '--manifest', manifest, '-o', unsigned]
+        if direct_launch:
+            resources = args.work / 'resources.zip'
+            resources.unlink(missing_ok=True)
+            run([bt / 'aapt2', 'compile', '--dir', repo / 'android/test11/res', '-o', resources])
+            link.append(resources)
+        run(link)
         with zipfile.ZipFile(unsigned, 'a', zipfile.ZIP_DEFLATED) as output:
             for info in base.infolist():
                 name = info.filename
@@ -118,6 +148,7 @@ def main(*, base_sha=BASE_SHA256, base_report=b'zettabridge-diagnostic-report 9'
                 'Unofficial compatibility test build; not a native ARM64 game port.\n'
                 'Core base: ZailoxTT/ZettaBridge d6066b9b9e61de27041ba6e1f3c499c080c9e2b7.\n'
                 f'Test{revision}: native screen mode, reduced tracing cost, and bounded display policy. Prior runtime assets retained.\n'
+                + ('Direct-launch addon and original vector launcher artwork included.\n' if direct_launch else '') +
                 'Source, reproduction evidence and rebuild instructions accompany this APK.\n'
                 'PolyForm Noncommercial 1.0.0 and Perimeter 1.0.1 apply cumulatively.\n'
                 'Game execution on the target Android device has not been verified.\n')

@@ -1,4 +1,4 @@
-# Blockheads Test11: bounded PPI-aware UI scale
+# Blockheads Test11: PPI-aware UI and direct launch
 
 ## Request and scope
 
@@ -51,7 +51,37 @@ The patch refuses unknown builds, altered literals/instructions, unreadable
 memory, invalid policy values and already-started execution. Diagnostics include
 raw density values/source, chosen points, relative size and native patch result.
 
-## Verification and current delivery limit
+## Direct launcher and icon
+
+The signed update uses the same package and private signer as Test10. Its app
+label is `Blockheads - ZettaBridge`. The new, original vector artwork is a
+block-built Z/bridge, with an adaptive icon on API 26+ and a monochrome layer on
+API 33+. It does not embed the original game's artwork or imply an official game
+release. The APK is an unofficial compatibility launcher, not a native game port.
+
+`BlockheadsLaunchActivity` is the sole MAIN/LAUNCHER entry in the host process.
+It finds the already-imported `com.noodlecake.blockheads`, checks its existing
+launchable metadata and archive, then calls the original
+`PluginSwitchActivity.intent`. It never loads the native game on the Android main
+thread or bypasses the existing process/task switch policy. A running copy of the
+same game is brought forward; a stale/different guest follows the original switch
+path. The transient entry finishes before resume and has its own task affinity.
+
+A fresh/incomplete import or missing archive opens the existing library for
+import/repair. The original game APK is not bundled. A long press on the new app
+icon exposes the Settings shortcut (`Games and diagnostics`, localized in Korean)
+to the original `LibraryActivity`; that activity remains explicitly accessible.
+Existing game shortcuts remain unchanged. A home-screen shortcut pinned to the
+old LibraryActivity may still open the library after an update; replace that old
+shortcut with the new app-drawer entry if necessary.
+
+The launcher ABI is verified against the pinned Test10 DEX, including `find`,
+`isLaunchable`, `apk` and `PluginSwitchActivity.intent`. Compile stubs are not
+packaged. The primary DEX changes only its same-length report version/checksums.
+All 41 original runtime/license assets remain byte-identical. No saves, consent,
+purchase handling or process-exit policy are changed.
+
+## Verification
 
 Passed in this workspace:
 - Actual addon compilation against Android SDK 35 with JDK 17.
@@ -68,13 +98,29 @@ Passed in this workspace:
 
 These fixtures are not measurements of the user's device. Actual target-device
 PPI, rendered UI size, touch alignment and folding behavior remain unverified.
-No Android native library link, APK assembly, signature/alignment verification
-or on-device run was performed for Test11. The pinned Test10 APK is no longer
-present in this workspace, and the GitHub repository contains source only.
-The user must reattach the Test10 APK or its install ZIP to finish packaging.
-Do not describe this source revision as a delivered installable Test11 build.
+The user restored the exact Test10 input in `source.zip` (SHA256
+c67a1a53dfb8dcfd4fcc2ed88650e3c60c6b59acf7a77ef38d868109db9344b9); all 110
+bundled SHA256 checks passed. Additional completed checks:
 
-## Packaging when the Test10 input is restored
+- Android arm64/API 29 Release compile and link with NDK r29, Boost 1.87 and
+  pinned Dynarmic plus both tracked patches. An explicit writable TMPDIR is
+  needed for the assembler in this workspace.
+- Actual addon SDK 35/D8 compilation, including the direct-launch activity.
+- Host launch contracts exercise real PluginRecord/PluginSwitchActivity code:
+  cold/warm/different guest routing, first/incomplete/missing archive fallback,
+  fixed game identity, and preservation of the save fixture.
+- APK v1/v2 signatures, identical Test10 signer, increasing versionCode, ZIP and
+  native ELF 16-KiB alignment, native exports/dependencies, all prior assets,
+  scoped DEX/manifest changes, compiled adaptive/monochrome icon, settings
+  shortcut and aapt2's sole launchable activity all pass.
+
+Host launch contracts do not emulate Android task management. Actual target-device
+launch/resume, shortcut UI, density behavior, touches and frame times still need
+installation testing. The install ZIP includes the APK, source snapshot, pinned
+Test10 input, hashes and build/verification evidence. It contains no private key,
+original game or QEMU binary.
+
+## Rebuilding
 
 Use NDK r29 and the pinned Dynarmic revision/patches described in CLAUDE.md to
 build the Android arm64/API29 Release core. Then use SDK/build-tools 35 and the
@@ -95,7 +141,19 @@ e2fa636c94c554db4977fb42b5b5f5cd44acc99dd9588daad3aab8ac261418fa.
 Expected in-place signer certificate SHA256:
 415bc1f97da699964e09228ece388741405ab7b2e750f1946dd7a6a363e08ae0.
 The builder reuses Test10's runtime assets and primary DEX, changing only the
-same-length report header/checksums. The addon and core are rebuilt. It keeps
+same-length report header/checksums. The addon and core are rebuilt; launcher
+resources and the scoped entry/shortcut manifest settings are compiled with aapt2. It keeps
 com.zettabridge.blockheadstest5, uses versionCode 20261020 and versionName
 0.1.0-blockheads-test11-ppi-ui, and retains the Test8Application ABI class name.
 No private key or original game is committed or included in a public bundle.
+
+Focused launch check:
+
+```sh
+python3 tools/test_blockheads_launch.py --jdk /path/to/jdk17 --work /path/to/launch-tests
+```
+
+Use `tools/package_blockheads_test11.py` after building/verification from a clean,
+committed source tree. It records the commit/tree and includes no signing material.
+The previous source-only handoff is superseded by this packaged build. Develop
+contains Test10 and later work; master remains the Test9 boundary.

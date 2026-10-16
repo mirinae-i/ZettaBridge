@@ -26,8 +26,11 @@ def method(data, index):
 
     cls, proto, name = struct.unpack_from('<HHI', data, mo + 8 * index)
     _, ret, args = struct.unpack_from('<III', data, po + 12 * proto)
-    assert args == 0
-    return typ(cls) + '->' + string(name) + '()' + typ(ret)
+    params = ''
+    if args:
+        count = struct.unpack_from('<I', data, args)[0]
+        params = ''.join(typ(i) for i in struct.unpack_from('<' + 'H' * count, data, args + 4))
+    return typ(cls) + '->' + string(name) + '(' + params + ')' + typ(ret)
 
 
 def verify(base_path, apk_path):

@@ -12,6 +12,6 @@ if __name__ == '__main__':
         parser.add_argument('--' + name, type=Path, required=True)
     args = parser.parse_args()
     result = verify(args.base, args.apk, args.native, base_sha=BASE_SHA256,
-                    base_report=b'zettabridge-diagnostic-report10', revision=11, suffix='ppi-ui')
+                    base_report=b'zettabridge-diagnostic-report10', revision=11, suffix='ppi-ui', direct_launch=True)
     args.out.write_text(json.dumps(result, indent=2) + '\n')
     print(json.dumps(result, indent=2))
