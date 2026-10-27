@@ -2066,3 +2066,24 @@ The production readySurface Java source is compiled with javac/D8 and its method
 is compared to final APK disassembly; JADX cannot reconstruct its Java CFG.
 771-class scope checks, 999 unchanged ZIP entries, v1/v2 signing and 16-KiB ZIP
 alignment pass. This is not ART/device validation; phone acceptance is pending.
+
+## Guest4: master merged and unfolded UI reduced
+
+The user explicitly requested merging all existing work into master. Master was
+fast-forwarded from Test9 94cc74e to Guest3 b705383 and pushed. This supersedes
+the historical instructions above that master must remain at Test9. New Guest4
+work continues on develop; do not force-push or rewrite either history.
+
+Guest4 is a signed guest import for the existing Test12 launcher, preserving all
+Guest3 DEX and its pause/return fix. Its exact-build ARM continuation multiplies
+native-mode scale by 0.9 only when the host PPI policy selected 600 < points <=
+682. The reported inner display selects 681.818. Pixel dimensions and normal
+touch code are untouched. The original artwork is not enhanced; do not promise
+perfect sharpness. See docs/blockheads-guest4-ui.md and tools/test_blockheads_ui.py.
+
+The real original/patched ARM method passes 12 scale/dispatch comparisons at two
+load addresses; 20 continuation boundary/register/status cases pass. Test12
+native patch fingerprints and 1,001 APK entries, including all DEX, are preserved.
+Signature, ZIP integrity and 16-KiB alignment pass. Device display/touch/folding
+acceptance remains pending. Back up and import Guest4 without uninstalling the
+launcher; rollback by importing Guest3. Never commit binaries or private keys.
