@@ -1,0 +1,81 @@
+package com.apportable.gl;
+
+import com.zettabridge.compat.SurfaceWait;
+import android.view.SurfaceHolder;
+import javax.microedition.khronos.egl.EGLConfig;
+import javax.microedition.khronos.opengles.GL;
+import javax.microedition.khronos.opengles.GL10;
+
+/** Compile-only carrier. Only readySurface's compiled method is transplanted.
+ * The fields, native declarations, constructor and nested class are NOT shipped.
+ */
+public class GLSurfaceView {
+    private Object mLock;
+    private boolean mHasSurface, mWaitingForSurface, mHaveEglSurface;
+    private boolean mHaveEglContext, mSizeChanged;
+    private int mWidth, mHeight;
+    private GL10 mGL;
+    private EglHelper mEglHelper;
+    private android.opengl.GLSurfaceView.Renderer mRenderer;
+
+    public native SurfaceHolder getHolder();
+    public native void stopEglSurfaceLocked();
+    private class EglHelper {
+        public EGLConfig mEglConfig;
+        public native void start();
+        public native GL createSurface(SurfaceHolder holder);
+    }
+
+    public void readySurface() {
+        boolean createContext = false;
+        boolean createSurface = false;
+        boolean sizeChanged = false;
+        int width = 0;
+        int height = 0;
+        while (true) {
+            synchronized (mLock) {
+                if (!mHasSurface && !mWaitingForSurface) {
+                    if (mHaveEglSurface) stopEglSurfaceLocked();
+                    mWaitingForSurface = true;
+                    mLock.notifyAll();
+                }
+                if (mHasSurface && mWaitingForSurface) {
+                    mWaitingForSurface = false;
+                    mLock.notifyAll();
+                }
+                if (mHasSurface && mWidth > 0 && mHeight > 0) {
+                    if (!mHaveEglContext) {
+                        mEglHelper.start();
+                        mHaveEglContext = true;
+                        mLock.notifyAll();
+                        createContext = true;
+                    }
+                    if (mHaveEglContext && !mHaveEglSurface) {
+                        mHaveEglSurface = true;
+                        createSurface = true;
+                        sizeChanged = true;
+                    }
+                    if (mHaveEglSurface) {
+                        if (mSizeChanged) {
+                            width = mWidth;
+                            height = mHeight;
+                            mSizeChanged = false;
+                            sizeChanged = true;
+                        }
+                        mLock.notifyAll();
+                        break;
+                    }
+                }
+            }
+            // Preserve the wait-for-surface contract, but let the window owner
+            // acknowledge Android stop/start work without holding mLock.
+            SurfaceWait.pump(mLock);
+        }
+        if (createSurface) {
+            mGL = (GL10) mEglHelper.createSurface(getHolder());
+            if (mGL == null) return;
+        }
+        if (createContext) mRenderer.onSurfaceCreated(mGL, mEglHelper.mEglConfig);
+        if (sizeChanged) mRenderer.onSurfaceChanged(mGL, width, height);
+    }
+}

@@ -2039,3 +2039,30 @@ alignment and compiled shortcuts. No Android gameplay, disk persistence or devic
 restore test was possible. Be explicit about those limits. Use version 20261021,
 package com.zettabridge.blockheadstest5 and the existing private signer. Publish
 on develop only; master remains Test9. Never commit keys or the original game.
+
+## 2026-10-28: Guest3 pause/return compatibility patch
+
+The user supplied the Test12 bundle and Guest2 game APK after workspace loss.
+Test12's latest report ends after onPause returns; native stacks predate that
+pause, so they do not identify a frozen on-device stack. Original guest code
+reproduces a host wait cycle: readySurface blocks the owner queue waiting for a
+new surface while Android can wait for a foreign window's stop acknowledgement.
+
+Guest3 pumps owner messages outside mLock during surface waits, handles surface
+callbacks on the owner without self-waiting, and defers callback reinterrupt
+until after acknowledgement. Only three guest methods change; native code,
+manifest, resources, PendingIntent compatibility and other DEX classes remain.
+See docs/blockheads-guest3-resume.md for evidence, reproducible build and limits.
+
+The release is an importable guest APK for the existing Test12 launcher. Its old
+private signer is unavailable; do not replace/uninstall the launcher or reset
+data. Test12's actual import code retains the plugin data directory. Back up via
+the Saves shortcut, fully close the guest, then Settings / Games -> Import APK.
+The report header remains Test12. Publish code on develop; keep master at Test9.
+
+Host regression reproduces the original stall and passes 30 patched pause/return
+cycles, owner callbacks, interrupt acknowledgement and exception/monitor checks.
+The production readySurface Java source is compiled with javac/D8 and its method
+is compared to final APK disassembly; JADX cannot reconstruct its Java CFG.
+771-class scope checks, 999 unchanged ZIP entries, v1/v2 signing and 16-KiB ZIP
+alignment pass. This is not ART/device validation; phone acceptance is pending.
